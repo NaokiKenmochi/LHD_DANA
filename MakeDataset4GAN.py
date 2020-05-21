@@ -23,10 +23,6 @@ class MakeDataset4GAN(Normalization_factor):
         if(self.mode != "deposition_calculation" and self.mode != "ECHsetting_estimation"):
             print("ERROR: mode must be deposition_calculation or ECHsetting_estimation")
             sys.exit()
-        self.p0_nf = Normalization_factor()
-        self.p0_nf.vname = 'p0'
-        self.p0_nf.xmin = 0.0
-        self.p0_nf.xmax = 10.0
         self.norm_fact= [["Te", 0, 10],
                         ["ne", 0,5],
                         ["RAX", 3.5,4.0],
@@ -36,16 +32,16 @@ class MakeDataset4GAN(Normalization_factor):
                         ["pf", 1.41, 5.00],
                         ["ip", -150, 150],
                         ["ipf", -12.60, 4.00],
-                        ["power", 0, 100],
+                        ["power", 0, 2.0],
                         ["Rfocus", 3.3, 3.9],
                         ["Tfocus", -0.8, 1.2],
                         ["Zfocus", -0.5, 0.5],
                         ["alpha", -90, 90],
                         ["beta", -45, 45],
-                        ["O_Power_Density", 0, 1],
-                         ["O_Total_Power", 0, 1],
-                         ["X_Power_Density", 0, 1],
-                         ["X_Total_Power", 0, 1]]
+                        ["O_Power_Density", 0, 2],
+                         ["O_Total_Power", 0, 2],
+                         ["X_Power_Density", 0, 2],
+                         ["X_Total_Power", 0, 2]]
 
 
     def make_dataset(self, ShotNo):
@@ -131,7 +127,7 @@ class MakeDataset4GAN(Normalization_factor):
                                             labelright=False, labeltop=False)
                             fig1.subplots_adjust(left=0., right=1., bottom=0., top=1.)
                             ax1.imshow(arr_input_2D, vmin=0, vmax=1, interpolation='none', cmap='PuRd')
-                            filepath = "input"
+                            filepath = "ECHdeposition_est_Pmax2MW/input"
                             filename = "dataset4GAN_LHDGAUSS_SN%d_t%.3fs_ECHline%d.png" % (ShotNo, t_LGin[i_time], i_line+1)
                             fig1.savefig(filepath +"/"+ filename, bbox_inches="tight", pad_inches=-0.033)
                             plt.close(fig1)
@@ -141,7 +137,7 @@ class MakeDataset4GAN(Normalization_factor):
                             arr_input_2D[50:75,:] = normalize(data_3d_LGdep[idx_time_LGdep, :, 4+4*i_line], xmin=self.norm_fact[17][1], xmax=self.norm_fact[17][2])
                             arr_input_2D[75:,:] = normalize(data_3d_LGdep[idx_time_LGdep, :, 5+4*i_line], xmin=self.norm_fact[18][1], xmax=self.norm_fact[18][2])
                             ax1.imshow(arr_input_2D, vmin=0, vmax=1,interpolation='none', cmap='PuRd')
-                            filepath = "output"
+                            filepath = "ECHdeposition_est_Pmax2MW/output"
                             filename = "dataset4GAN_LHDGAUSS_SN%d_t%.3fs_ECHline%d.png" % (ShotNo, t_LGin[i_time], i_line+1)
                             fig1.savefig(filepath +"/"+ filename, bbox_inches="tight", pad_inches=-0.033)
                             plt.close(fig1)
@@ -173,7 +169,7 @@ class MakeDataset4GAN(Normalization_factor):
                             arr_input_2D[90:95, :] = ip[idx_time_tsmap_nel]  # ip [kA/T]
                             arr_input_2D[95:, :] = ipf[idx_time_tsmap_nel]  # ipf [arb]
                             ax1.imshow(arr_input_2D, vmin=0, vmax=1, interpolation='none', cmap='PuRd')
-                            filepath = "ECHsetting_est/input"
+                            filepath = "ECHsetting_est_Pmax2MW/input"
                             filename = "dataset4GAN_LHDGAUSS_setting_est_SN%d_t%.3fs_ECHline%d.png" % (
                             ShotNo, t_LGin[i_time], i_line + 1)
                             fig1.savefig(filepath + "/" + filename, bbox_inches="tight", pad_inches=-0.033)
@@ -193,7 +189,7 @@ class MakeDataset4GAN(Normalization_factor):
                                                              xmax=self.norm_fact[14][2])  # beta [deg]
 
                             ax1.imshow(arr_input_2D, vmin=0, vmax=1, interpolation='none', cmap='PuRd')
-                            filepath = "ECHsetting_est/output"
+                            filepath = "ECHsetting_est_Pmax2MW/output"
                             filename = "dataset4GAN_LHDGAUSS_setting_est_SN%d_t%.3fs_ECHline%d.png" % (
                                 ShotNo, t_LGin[i_time], i_line + 1)
                             fig1.savefig(filepath + "/" + filename, bbox_inches="tight", pad_inches=-0.033)
@@ -206,7 +202,7 @@ class MakeDataset4GAN(Normalization_factor):
                         print("No data of LHDGAUSS at t=%.3f" % t_LGin[i_time])
 
     def get_dataseries(self):
-        for i in range(144664, 153367):
+        for i in range(144105, 153367):	#Cycle 20: 144105-153366
             try:
                 if icheckfile('LHDGAUSS_DEPROF', i, 1) & icheckfile('LHDGAUSS_INPUT', i, 1):
                     print("Data exist for ShotNo.%d" % i)
@@ -651,7 +647,7 @@ def icheckfile(diagname, shotno, subshot):
 if __name__ == "__main__":
     import time
     start = time.time()
-    md4GAN = MakeDataset4GAN(ShotNo=153377, mode="ECHsetting_estimation")
+    md4GAN = MakeDataset4GAN(ShotNo=153377, mode="deposition_calculation")
     #md4GAN.ana_plot_eg(arr_time=[3.083])
     #md4GAN.ana_plot_LHDGauss_deprof(arr_time=[3.083])
     #md4GAN.searchData()

@@ -29,7 +29,7 @@ class CTS_Analysis:
     def stft(self):
         data = VoltData.retrieve('CTSfosc1', 131030, 1, 1)
         voltdata = data.get_val()
-        #timedata = TimeData.retrieve('CTSfosc1', 131030, 1, 1).get_val()
+        timedata = TimeData.retrieve('CTSfosc1', 131030, 1, 1).get_val()
 
         idx_st = 0
         idx_ed = 100000
