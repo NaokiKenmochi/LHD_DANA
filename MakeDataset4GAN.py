@@ -43,7 +43,173 @@ class MakeDataset4GAN(Normalization_factor):
                          ["X_Power_Density", 0, 2],
                          ["X_Total_Power", 0, 2]]
 
+        self.R_fir = [0, 0, 3.309, 3.399, 3.489, 3.579, 3.669, 3.759, 3.849, 3.939, 4.029, 4.119, 4.209, 4.299, 4.389]
 
+    def make_dataset_line3(self, ShotNo):
+        data_shotinfo = AnaData.retrieve('shotinfo', ShotNo, 1)
+        RAX = float(data_shotinfo.getValData('Rax_vac'))
+        Bq = float(data_shotinfo.getValData('Bq'))
+        gamma = float(data_shotinfo.getValData('gamma'))
+
+        data_tsmap_nel = AnaData.retrieve('tsmap_nel', ShotNo, 1)
+        p0 = data_tsmap_nel.getValData('p0')
+        pf = data_tsmap_nel.getValData('pf')
+        ip = data_tsmap_nel.getValData('ip')
+        ipf = data_tsmap_nel.getValData('ipf')
+        data_LGdep = AnaData.retrieve('LHDGAUSS_DEPROF', ShotNo, 1)
+        data_LGin = AnaData.retrieve('LHDGAUSS_INPUT', ShotNo, 1)
+        data_TS = AnaData.retrieve('tsmap_smooth', ShotNo, 1)
+        t_tsmap_nel = data_tsmap_nel.getDimData('Time')
+        t_LGin = data_LGin.getDimData('time')
+        t_LGdep = data_LGdep.getDimData('time')
+        t_TS = data_TS.getDimData('Time')
+        #reff = data.getValData('reff/a99')
+        Te_fit = data_TS.getValData('Te_fit')
+        ne_fit = data_TS.getValData('ne_fit')
+
+        dsize_time = data_LGin.getDimSize(0)
+        dsize_line = data_LGin.getDimSize(1)
+        vnum_LGin = data_LGin.getValNo()
+        data_3d_LGin = np.zeros((dsize_time, dsize_line, vnum_LGin))
+
+        #normalization
+        Te_fit = normalize(Te_fit, xmin=self.norm_fact[0][1], xmax=self.norm_fact[0][2])
+        ne_fit = normalize(ne_fit, xmin=self.norm_fact[1][1], xmax=self.norm_fact[1][2])
+        RAX = normalize(RAX , xmin=self.norm_fact[2][1], xmax=self.norm_fact[2][2])
+        Bq = normalize(Bq, xmin=self.norm_fact[3][1], xmax=self.norm_fact[3][2])
+        gamma = normalize(gamma, xmin=self.norm_fact[4][1], xmax=self.norm_fact[4][2])
+        p0 = normalize(p0, xmin=self.norm_fact[5][1], xmax=self.norm_fact[5][2])
+        pf = normalize(pf, xmin=self.norm_fact[6][1], xmax=self.norm_fact[6][2])
+        ip = normalize(ip, xmin=self.norm_fact[7][1], xmax=self.norm_fact[7][2])
+        ipf = normalize(ipf, xmin=self.norm_fact[8][1], xmax=self.norm_fact[8][2])
+        for i in range(vnum_LGin):
+            data_3d_LGin[:,:,i] = data_LGin.getValData(i)
+        vnum_LGdep = data_LGdep.getValNo()
+        data_3d_LGdep = np.zeros((data_LGdep.getDimSize(0), data_LGdep.getDimSize(1), vnum_LGdep))
+        for i in range(vnum_LGdep):
+            data_3d_LGdep[:,:,i] = data_LGdep.getValData(i)
+
+        dpi = 100
+        figsize_px = np.array([100, 100])
+        figsize_inch = figsize_px / dpi
+        for i_time in range(dsize_time):
+            #for i_line in range(dsize_line):
+            i_line = 2
+            i_tank = 3
+            if(data_3d_LGin[i_time, i_line, 3]>0.0):    #get data if Pech_inj > 0.0 MW
+                arr_input_2D = np.zeros((100, 100))
+                idx_time_TS = getNearestIndex(t_TS, t_LGin[i_time])
+                idx_time_LGdep = getNearestIndex(t_LGdep, t_LGin[i_time])
+                idx_time_tsmap_nel = getNearestIndex(t_tsmap_nel, t_LGin[i_time])
+                if(t_LGin[i_time]==t_LGdep[idx_time_LGdep] and t_LGin[i_time]==t_TS[idx_time_TS]):
+                    Te = Te_fit[idx_time_TS, :]
+                    ne = ne_fit[idx_time_TS, :]
+                    if(self.mode == "deposition_calculation"):
+                        arr_input_2D[:8, :81] = Te[:81]
+                        arr_input_2D[8:16, :80] = Te[81:]
+                        arr_input_2D[16:24, :81] = ne[:81]
+                        arr_input_2D[24:32, :80] = ne[81:]
+                        arr_input_2D[35:40, :] = RAX    #RAX [m]
+                        arr_input_2D[40:45, :] = Bq     #Bq[%]
+                        arr_input_2D[45:50, :] = gamma  #gamma['']
+                        arr_input_2D[50:55, :] = p0[idx_time_tsmap_nel]    #p0 [%]
+                        arr_input_2D[55:60, :] = pf[idx_time_tsmap_nel]    #pf [arb]
+                        arr_input_2D[60:65, :] = ip[idx_time_tsmap_nel]    #ip [kA/T]
+                        arr_input_2D[65:70, :] = ipf[idx_time_tsmap_nel]    #ipf [arb]
+                        arr_input_2D[70:75, :] = normalize(data_3d_LGin[i_time, i_line, 3], xmin=self.norm_fact[9][1], xmax=self.norm_fact[9][2])    #power [MW]
+                        arr_input_2D[75:80, :] = normalize(data_3d_LGin[i_time, i_line, 4], xmin=self.norm_fact[10][1], xmax=self.norm_fact[10][2])    #Rfocus [m]
+                        arr_input_2D[80:85, :] = normalize(data_3d_LGin[i_time, i_line, 5], xmin=self.norm_fact[11][1], xmax=self.norm_fact[11][2])    #Tfocus [m]
+                        arr_input_2D[85:90, :] = normalize(data_3d_LGin[i_time, i_line, 6], xmin=self.norm_fact[12][1], xmax=self.norm_fact[12][2])    #Zfocus [m]
+                        arr_input_2D[90:95, :] = normalize(data_3d_LGin[i_time, i_line, 13], xmin=self.norm_fact[13][1], xmax=self.norm_fact[13][2])   #alpha [deg]
+                        arr_input_2D[95:, :] = normalize(data_3d_LGin[i_time, i_line, 14], xmin=self.norm_fact[14][1], xmax=self.norm_fact[14][2])     #beta [deg]
+
+                        fig1, ax1 = plt.subplots(figsize=figsize_inch, dpi=dpi)
+                        ax1.axis("off")
+                        ax1.tick_params(bottom=False, left=False, right=False, top=False, labelbottom=False,
+                                        labelleft=False,
+                                        labelright=False, labeltop=False)
+                        fig1.subplots_adjust(left=0., right=1., bottom=0., top=1.)
+                        ax1.imshow(arr_input_2D, vmin=0, vmax=1, interpolation='none', cmap='PuRd')
+                        filepath = "ECHdeposition_est_Pmax2MW_line3/input"
+                        filename = "dataset4GAN_LHDGAUSS_SN%d_t%.3fs_ECHline%d.png" % (ShotNo, t_LGin[i_time], i_line+1)
+                        fig1.savefig(filepath +"/"+ filename, bbox_inches="tight", pad_inches=-0.033)
+                        plt.close(fig1)
+
+                        arr_input_2D[:25,:] = normalize(data_3d_LGdep[idx_time_LGdep, :, 2+4*i_tank], xmin=self.norm_fact[15][1], xmax=self.norm_fact[15][2])
+                        arr_input_2D[25:50,:] = normalize(data_3d_LGdep[idx_time_LGdep, :, 3+4*i_tank], xmin=self.norm_fact[16][1], xmax=self.norm_fact[16][2])
+                        arr_input_2D[50:75,:] = normalize(data_3d_LGdep[idx_time_LGdep, :, 4+4*i_tank], xmin=self.norm_fact[17][1], xmax=self.norm_fact[17][2])
+                        arr_input_2D[75:,:] = normalize(data_3d_LGdep[idx_time_LGdep, :, 5+4*i_tank], xmin=self.norm_fact[18][1], xmax=self.norm_fact[18][2])
+                        ax1.imshow(arr_input_2D, vmin=0, vmax=1,interpolation='none', cmap='PuRd')
+                        filepath = "ECHdeposition_est_Pmax2MW_line3/output"
+                        filename = "dataset4GAN_LHDGAUSS_SN%d_t%.3fs_ECHline%d.png" % (ShotNo, t_LGin[i_time], i_line+1)
+                        #fig1.savefig(filepath +"/"+ filename, bbox_inches="tight", pad_inches=-0.033)
+                        plt.close(fig1)
+                    elif(self.mode == "ECHsetting_estimation"):
+                        fig1, ax1 = plt.subplots(figsize=figsize_inch, dpi=dpi)
+                        ax1.axis("off")
+                        ax1.tick_params(bottom=False, left=False, right=False, top=False, labelbottom=False,
+                                        labelleft=False,
+                                        labelright=False, labeltop=False)
+                        fig1.subplots_adjust(left=0., right=1., bottom=0., top=1.)
+
+                        arr_input_2D[:8, :] = normalize(data_3d_LGdep[idx_time_LGdep, :, 2 + 4 * i_tank],
+                                                        xmin=self.norm_fact[15][1], xmax=self.norm_fact[15][2])
+                        arr_input_2D[8:16, :] = normalize(data_3d_LGdep[idx_time_LGdep, :, 3 + 4 * i_tank],
+                                                          xmin=self.norm_fact[16][1], xmax=self.norm_fact[16][2])
+                        arr_input_2D[16:24, :] = normalize(data_3d_LGdep[idx_time_LGdep, :, 4 + 4 * i_tank],
+                                                           xmin=self.norm_fact[17][1], xmax=self.norm_fact[17][2])
+                        arr_input_2D[24:32, :] = normalize(data_3d_LGdep[idx_time_LGdep, :, 5 + 4 * i_tank],
+                                                           xmin=self.norm_fact[18][1], xmax=self.norm_fact[18][2])
+                        max_arr_input_2D = np.max(arr_input_2D)
+                        if i_line == 2:
+                            print("         line 3: ", np.max(arr_input_2D))
+                        #else:
+                        #    print("line %d: %.3f" % (i_line+1, np.max(arr_input_2D)))
+                        arr_input_2D[32:40, :81] = Te[:81]
+                        arr_input_2D[40:48, :80] = Te[81:]
+                        arr_input_2D[48:56, :81] = ne[:81]
+                        arr_input_2D[56:64, :80] = ne[81:]
+                        arr_input_2D[65:70, :] = RAX  # RAX[m]
+                        arr_input_2D[70:75, :] = Bq  # Bq[%]
+                        arr_input_2D[75:80, :] = gamma  # gamma['']
+                        arr_input_2D[80:85, :] = p0[idx_time_tsmap_nel]  # p0 [%]
+                        arr_input_2D[85:90, :] = pf[idx_time_tsmap_nel]  # pf [arb]
+                        arr_input_2D[90:95, :] = ip[idx_time_tsmap_nel]  # ip [kA/T]
+                        arr_input_2D[95:, :] = ipf[idx_time_tsmap_nel]  # ipf [arb]
+                        ax1.imshow(arr_input_2D, vmin=0, vmax=1, interpolation='none', cmap='PuRd')
+                        filepath = "ECHsetting_est_Pmax2MW_line3/input"
+                        filename = "dataset4GAN_LHDGAUSS_setting_est_SN%d_t%.3fs_ECHline%d.png" % (
+                            ShotNo, t_LGin[i_time], i_line + 1)
+                        fig1.savefig(filepath + "/" + filename, bbox_inches="tight", pad_inches=-0.033)
+                        plt.close(fig1)
+
+                        arr_input_2D[:15, :] = normalize(data_3d_LGin[i_time, i_line, 3], xmin=self.norm_fact[9][1],
+                                                         xmax=self.norm_fact[9][2])  # power [MW]
+                        if i_line == 2:
+                            print("PW line 3: ", np.max(arr_input_2D[:15, :]))
+                        arr_input_2D[15:32, :] = normalize(data_3d_LGin[i_time, i_line, 4], xmin=self.norm_fact[10][1],
+                                                           xmax=self.norm_fact[10][2])  # Rfocus [m]
+                        arr_input_2D[32:49, :] = normalize(data_3d_LGin[i_time, i_line, 5], xmin=self.norm_fact[11][1],
+                                                           xmax=self.norm_fact[11][2])  # Tfocus [m]
+                        arr_input_2D[49:66, :] = normalize(data_3d_LGin[i_time, i_line, 6], xmin=self.norm_fact[12][1],
+                                                           xmax=self.norm_fact[12][2])  # Zfocus [m]
+                        arr_input_2D[66:83, :] = normalize(data_3d_LGin[i_time, i_line, 13], xmin=self.norm_fact[13][1],
+                                                           xmax=self.norm_fact[13][2])  # alpha [deg]
+                        arr_input_2D[83:, :] = normalize(data_3d_LGin[i_time, i_line, 14], xmin=self.norm_fact[14][1],
+                                                         xmax=self.norm_fact[14][2])  # beta [deg]
+
+                        ax1.imshow(arr_input_2D, vmin=0, vmax=1, interpolation='none', cmap='PuRd')
+                        filepath = "ECHsetting_est_Pmax2MW_line3/output"
+                        filename = "dataset4GAN_LHDGAUSS_setting_est_SN%d_t%.3fs_ECHline%d.png" % (
+                            ShotNo, t_LGin[i_time], i_line + 1)
+                        fig1.savefig(filepath + "/" + filename, bbox_inches="tight", pad_inches=-0.033)
+                        plt.close(fig1)
+
+                    else:
+                        print("mode must be deposition_calculation or ECHsetting_estimation")
+                        break
+                else:
+                    print("No data of LHDGAUSS at t=%.3f" % t_LGin[i_time])
     def make_dataset(self, ShotNo):
         data_shotinfo = AnaData.retrieve('shotinfo', ShotNo, 1)
         RAX = float(data_shotinfo.getValData('Rax_vac'))
@@ -106,9 +272,9 @@ class MakeDataset4GAN(Normalization_factor):
                             arr_input_2D[8:16, :80] = Te[81:]
                             arr_input_2D[16:24, :81] = ne[:81]
                             arr_input_2D[24:32, :80] = ne[81:]
-                            arr_input_2D[35:40, :] = RAX    #p0 [m]
-                            arr_input_2D[40:45, :] = Bq     #p0 [%]
-                            arr_input_2D[45:50, :] = gamma  #p0 ['']
+                            arr_input_2D[35:40, :] = RAX    #RAX [m]
+                            arr_input_2D[40:45, :] = Bq     #Bq[%]
+                            arr_input_2D[45:50, :] = gamma  #gamma['']
                             arr_input_2D[50:55, :] = p0[idx_time_tsmap_nel]    #p0 [%]
                             arr_input_2D[55:60, :] = pf[idx_time_tsmap_nel]    #pf [arb]
                             arr_input_2D[60:65, :] = ip[idx_time_tsmap_nel]    #ip [kA/T]
@@ -139,7 +305,7 @@ class MakeDataset4GAN(Normalization_factor):
                             ax1.imshow(arr_input_2D, vmin=0, vmax=1,interpolation='none', cmap='PuRd')
                             filepath = "ECHdeposition_est_Pmax2MW/output"
                             filename = "dataset4GAN_LHDGAUSS_SN%d_t%.3fs_ECHline%d.png" % (ShotNo, t_LGin[i_time], i_line+1)
-                            fig1.savefig(filepath +"/"+ filename, bbox_inches="tight", pad_inches=-0.033)
+                            #fig1.savefig(filepath +"/"+ filename, bbox_inches="tight", pad_inches=-0.033)
                             plt.close(fig1)
                         elif(self.mode == "ECHsetting_estimation"):
                             fig1, ax1 = plt.subplots(figsize=figsize_inch, dpi=dpi)
@@ -157,13 +323,18 @@ class MakeDataset4GAN(Normalization_factor):
                                                                xmin=self.norm_fact[17][1], xmax=self.norm_fact[17][2])
                             arr_input_2D[24:32, :] = normalize(data_3d_LGdep[idx_time_LGdep, :, 5 + 4 * i_line],
                                                              xmin=self.norm_fact[18][1], xmax=self.norm_fact[18][2])
+                            max_arr_input_2D = np.max(arr_input_2D)
+                            if i_line == 3:
+                                print("         line 3: ", np.max(arr_input_2D))
+                            #else:
+                            #    print("line %d: %.3f" % (i_line+1, np.max(arr_input_2D)))
                             arr_input_2D[32:40, :81] = Te[:81]
                             arr_input_2D[40:48, :80] = Te[81:]
                             arr_input_2D[48:56, :81] = ne[:81]
                             arr_input_2D[56:64, :80] = ne[81:]
-                            arr_input_2D[65:70, :] = RAX  # p0 [m]
-                            arr_input_2D[70:75, :] = Bq  # p0 [%]
-                            arr_input_2D[75:80, :] = gamma  # p0 ['']
+                            arr_input_2D[65:70, :] = RAX  # RAX[m]
+                            arr_input_2D[70:75, :] = Bq  # Bq[%]
+                            arr_input_2D[75:80, :] = gamma  # gamma['']
                             arr_input_2D[80:85, :] = p0[idx_time_tsmap_nel]  # p0 [%]
                             arr_input_2D[85:90, :] = pf[idx_time_tsmap_nel]  # pf [arb]
                             arr_input_2D[90:95, :] = ip[idx_time_tsmap_nel]  # ip [kA/T]
@@ -177,6 +348,8 @@ class MakeDataset4GAN(Normalization_factor):
 
                             arr_input_2D[:15, :] = normalize(data_3d_LGin[i_time, i_line, 3], xmin=self.norm_fact[9][1],
                                                              xmax=self.norm_fact[9][2])  # power [MW]
+                            if i_line == 3:
+                                print("PW line 3: ", np.max(arr_input_2D[:15, :]))
                             arr_input_2D[15:32, :] = normalize(data_3d_LGin[i_time, i_line, 4], xmin=self.norm_fact[10][1],
                                                                xmax=self.norm_fact[10][2])  # Rfocus [m]
                             arr_input_2D[32:49, :] = normalize(data_3d_LGin[i_time, i_line, 5], xmin=self.norm_fact[11][1],
@@ -192,7 +365,7 @@ class MakeDataset4GAN(Normalization_factor):
                             filepath = "ECHsetting_est_Pmax2MW/output"
                             filename = "dataset4GAN_LHDGAUSS_setting_est_SN%d_t%.3fs_ECHline%d.png" % (
                                 ShotNo, t_LGin[i_time], i_line + 1)
-                            fig1.savefig(filepath + "/" + filename, bbox_inches="tight", pad_inches=-0.033)
+                            #fig1.savefig(filepath + "/" + filename, bbox_inches="tight", pad_inches=-0.033)
                             plt.close(fig1)
 
                         else:
@@ -202,11 +375,11 @@ class MakeDataset4GAN(Normalization_factor):
                         print("No data of LHDGAUSS at t=%.3f" % t_LGin[i_time])
 
     def get_dataseries(self):
-        for i in range(144105, 153367):	#Cycle 20: 144105-153366
+        for i in range(145222, 153367):	#Cycle 20: 144105-153366
             try:
                 if icheckfile('LHDGAUSS_DEPROF', i, 1) & icheckfile('LHDGAUSS_INPUT', i, 1):
                     print("Data exist for ShotNo.%d" % i)
-                    md4GAN.make_dataset(i)
+                    md4GAN.make_dataset_line3(i)
                 else:
                     print("Data NOT exist or BROKEN for ShotNo.%d" % i)
             except Exception as e:
@@ -362,10 +535,11 @@ class MakeDataset4GAN(Normalization_factor):
         '''
 
         arr_input_2D = np.zeros((100,100))
-        arr_input_2D[:25,:] = data_3d[idx_time, :, 26]
-        arr_input_2D[25:50,:] = data_3d[idx_time, :, 27]
-        arr_input_2D[50:75,:] = data_3d[idx_time, :, 28]
-        arr_input_2D[75:,:] = data_3d[idx_time, :, 29]
+        i_line = 3
+        arr_input_2D[:25,:] = data_3d[idx_time, :, 2 + 4 * i_line]
+        arr_input_2D[25:50,:] = data_3d[idx_time, :, 3 + 4 * i_line]
+        arr_input_2D[50:75,:] = data_3d[idx_time, :, 4 + 4 * i_line]
+        arr_input_2D[75:,:] = data_3d[idx_time, :, 5 + 4 * i_line]
         #plt.show()
         dpi = 100
         figsize_px = np.array([100,100])
@@ -376,7 +550,8 @@ class MakeDataset4GAN(Normalization_factor):
                         labelright=False, labeltop=False)
         fig.subplots_adjust(left=0., right=1., bottom=0., top=1.)
         ax.imshow(arr_input_2D, vmin=0, vmax=1,interpolation='none', cmap='PuRd')
-        fig.savefig('LHDGAUSS_DEPROF_test.png', bbox_inches="tight", pad_inches=-0.033)
+        plt.show()
+        #fig.savefig('LHDGAUSS_DEPROF_test.png', bbox_inches="tight", pad_inches=-0.033)
 
     def ana_plot_LHDGauss_deprof(self, arr_time):
         data = AnaData.retrieve('LHDGAUSS_DEPROF', self.ShotNo, 1)
@@ -444,6 +619,110 @@ class MakeDataset4GAN(Normalization_factor):
 
         return reff[idx_time, :], Te_fit[idx_time, :], ne_fit[idx_time, :]
 
+    def ana_plot_timetrace(self, arr_time):
+        data = AnaData.retrieve('fir_nel', self.ShotNo, 1)
+
+        # 次元 'R' のデータを取得 (要素数137 の一次元配列(numpy.Array)が返ってくる)
+        #r = data.getDimData('reff')
+        vnum = data.getValNo()
+        for i in range(vnum):
+            print(i, data.getValName(i), data.getValUnit(i))
+        #r_unit = data.getDimUnit('m')
+
+        # 次元 'Time' のデータを取得 (要素数96 の一次元配列(numpy.Array)が返ってくる)
+        t = data.getDimData('Time')
+
+        plt.figure(figsize=(5.3, 3), dpi=100)
+        plt.xlabel('Time')
+        plt.ylabel('ne_bar')
+        for i in range(vnum):
+            ne_bar = data.getValData(i)
+            plt.plot(t, ne_bar)
+        plt.show()
+
+    def ana_plot_ece(self, arr_time):
+        data = AnaData.retrieve('ece_slow', self.ShotNo, 1)
+
+        # 次元 'R' のデータを取得 (要素数137 の一次元配列(numpy.Array)が返ってくる)
+        r = data.getDimData('R')
+        vnum = data.getValNo()
+        for i in range(vnum):
+            print(i, data.getValName(i), data.getValUnit(i))
+        #r_unit = data.getDimUnit('m')
+
+        # 次元 'Time' のデータを取得 (要素数96 の一次元配列(numpy.Array)が返ってくる)
+        t = data.getDimData('time')
+
+        # 変数 'Te' のデータを取得 (要素数 136x96 の二次元配列(numpy.Array)が返ってくる)
+        Te = data.getValData('Te')
+
+        # 各時刻毎の R 対 Te のデータをプロット
+
+        plt.figure(figsize=(5.3, 3), dpi=100)
+        plt.xlabel('R')
+        plt.ylabel('Te [keV]')
+        labels = []
+
+        idx_arr_time = getNearestIndex(t, arr_time)
+        val_arr_time = t[idx_arr_time]
+
+        # データ取得
+        T = Te[idx_arr_time, :]  # R 次元でのスライスを取得
+        plt.plot(r, T, label='Te', linestyle='None', marker='o')
+
+        data = AnaData.retrieve('tsmap_smooth', self.ShotNo, 1)
+
+        # 次元 'R' のデータを取得 (要素数137 の一次元配列(numpy.Array)が返ってくる)
+        r = data.getDimData('reff')
+        vnum = data.getValNo()
+        for i in range(vnum):
+            print(i, data.getValName(i), data.getValUnit(i))
+        #r_unit = data.getDimUnit('m')
+
+        # 次元 'Time' のデータを取得 (要素数96 の一次元配列(numpy.Array)が返ってくる)
+        t = data.getDimData('Time')
+
+        # 変数 'Te' のデータを取得 (要素数 136x96 の二次元配列(numpy.Array)が返ってくる)
+        r_high = data.getValData('R_high')
+        r_low = data.getValData('R_low')
+        #ne = data.getValData('ne_calFIR')
+        Te_fit = data.getValData('Te_fit')
+        ne_fit = data.getValData('ne_fit')
+        #label = 't = %05.3f (sec)' % (t[idx])  # 凡例用文字列
+        #title = ('tsmap_smooth #%d, ' + label) % (self.ShotNo)
+        #plt.title(title)
+        idx_arr_time = getNearestIndex(t, arr_time)
+        val_arr_time = t[idx_arr_time]
+
+        # データ取得
+        T = Te_fit[idx_arr_time, :]  # R 次元でのスライスを取得
+        ne = ne_fit[idx_arr_time, :]  # R 次元でのスライスを取得
+        R_ = r_low[idx_arr_time, :]  # R 次元でのスライスを取得
+        plt.plot(R_, T, label='Te', linestyle='None', marker='o')
+        plt.legend()  # 凡例セット
+        plt.show()  # グラフ描画
+        plt.plot(R_, ne, label='ne', linestyle='None', marker='o')
+        #plt.ylim(0, 5)
+        #plt.xlim(0, 1.5)
+
+        data = AnaData.retrieve('fir_nel', self.ShotNo, 1)
+        vnum = data.getValNo()
+
+        # 次元 'R' のデータを取得 (要素数137 の一次元配列(numpy.Array)が返ってくる)
+        #r = data.getDimData('reff')
+
+        # 次元 'Time' のデータを取得 (要素数96 の一次元配列(numpy.Array)が返ってくる)
+        t = data.getDimData('Time')
+        idx_arr_time = getNearestIndex(t, arr_time)
+        val_arr_time = t[idx_arr_time]
+
+        ne_bar_prof = np.zeros(vnum)
+
+        for i in range(vnum):
+            ne_bar = data.getValData(i)
+            ne_bar_prof[i] = ne_bar[idx_arr_time]
+        plt.plot(self.R_fir, ne_bar_prof, linestyle='None', marker='v')
+        plt.show()  # グラフ描画
     def ana_plot_eg(self, arr_time):
         data = AnaData.retrieve('tsmap_smooth', self.ShotNo, 1)
 
@@ -647,15 +926,16 @@ def icheckfile(diagname, shotno, subshot):
 if __name__ == "__main__":
     import time
     start = time.time()
-    md4GAN = MakeDataset4GAN(ShotNo=153377, mode="deposition_calculation")
+    md4GAN = MakeDataset4GAN(ShotNo=145222, mode="ECHsetting_estimation")
     #md4GAN.ana_plot_eg(arr_time=[3.083])
-    #md4GAN.ana_plot_LHDGauss_deprof(arr_time=[3.083])
+    #md4GAN.ana_plot_LHDGauss_deprof(arr_time=[3.083, 4.0])
     #md4GAN.searchData()
     md4GAN.get_dataseries()
+    #md4GAN.ana_plot_ece(arr_time=[3.383])
     #val_time=7.5
     #md4GAN.ana_plot_LHDGauss_deprof_3D(val_time=val_time)
     #md4GAN.plot_tsmap_LHDGAUSS_input(val_time=val_time)
-    #md4GAN.make_dataset(153396)
+    #md4GAN.make_dataset(153377)
     #md4GAN.searchData()
     #i = 150003
     #for i in range(153367, 161167):
