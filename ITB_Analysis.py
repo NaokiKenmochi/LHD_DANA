@@ -17,6 +17,10 @@ class ITB_Analysis:
         plt.rcParams["ytick.direction"] = "in"  # y軸の目盛線を内向きへ
         plt.rcParams["xtick.minor.visible"] = True  # x軸補助目盛りの追加
         plt.rcParams["ytick.minor.visible"] = True  # y軸補助目盛りの追加
+        plt.rcParams["xtick.major.size"] = 8  # x軸主目盛り線の長さ
+        plt.rcParams["ytick.major.size"] = 8  # y軸主目盛り線の長さ
+        plt.rcParams["xtick.minor.size"] = 4  # x軸補助目盛り線の長さ
+        plt.rcParams["ytick.minor.size"] = 4  # y軸補助目盛り線の長さ
 
         self.ShotNo = ShotNo
 
@@ -388,6 +392,60 @@ class ITB_Analysis:
         plt.show()
         #plt.savefig("timetrace_ECE_FIR_No%d.png" % self.ShotNo)
 
+    def ana_plot_discharge_waveform_basic(self):
+        data_wp = AnaData.retrieve('wp', self.ShotNo, 1)
+        data_ECH = AnaData.retrieve('echpw', self.ShotNo, 1)
+        data_fir = AnaData.retrieve('fir_nel', self.ShotNo, 1)
+
+        # 次元 'R' のデータを取得 (要素数137 の一次元配列(numpy.Array)が返ってくる)
+        t_ECH = data_ECH.getDimData('Time')
+        t_Wp = data_wp.getDimData('Time')
+        t_fir = data_fir.getDimData('Time')
+
+        plt.clf()
+        f, axarr = plt.subplots(4, 1, gridspec_kw={'wspace': 0, 'hspace': 0}, figsize=(10,6), dpi=300, sharex=True)
+
+        # データ取得
+        title = ('#%d') % (self.ShotNo)
+        vnum_ECH = data_ECH.getValNo()
+        axarr[0].set_title(title, loc='left', fontsize=16)
+        view_ECH = np.array([12, 0, 1, 2, 4, 5, 6, 7])
+        for i in range(len(view_ECH)):
+            data_ = data_ECH.getValData(view_ECH[i])
+            axarr[3].plot(t_ECH, data_, '-', label=data_ECH.getValName(view_ECH[i]))
+
+        arr_data_name = ['nb1', 'nb2', 'nb3', 'nb4a', 'nb4b', 'nb5a', 'nb5b']
+        for i in range(len(arr_data_name)):
+            data_NBI = AnaData.retrieve(arr_data_name[i] + 'pwr_temporal', self.ShotNo, 1)
+            data_NBI_ = data_NBI.getValData(1)
+            t_NBI = data_NBI.getDimData('time')
+            label = str.upper(arr_data_name[i])
+            axarr[2].plot(t_NBI, data_NBI_, label=label)
+
+        data_wp_ = data_wp.getValData('Wp')
+        data_fir_ = data_fir.getValData(0)
+        axarr[0].plot(t_Wp, data_wp_, color='black')
+        axarr[1].plot(t_fir, data_fir_, color='black')
+        axarr[0].set_xlim(3,6)
+        axarr[0].set_ylim(0,)
+        axarr[1].set_ylim(0,)
+        axarr[2].set_ylim(0,)
+        axarr[3].set_ylim(0,)
+        axarr[2].legend(frameon=False, loc='right', fontsize=8)
+        axarr[3].legend(frameon=False, loc='right', fontsize=8)
+        axarr[0].set_ylabel('Wp [kJ]', fontsize=14)
+        axarr[1].set_ylabel(r'$\overline{n_e}\ [10^{19} m^{-3}$]', fontsize=14)
+        axarr[2].set_ylabel('NBI [MW]', fontsize=12)
+        axarr[3].set_ylabel('ECH [MW]', fontsize=12)
+        axarr[3].set_xlabel('Time [sec]', fontsize=12)
+        axarr[0].tick_params(which='both', axis='both', right=True, top=True, left=True, bottom=True, labelsize=10)
+        axarr[1].tick_params(which='both', axis='both', right=True, top=True, left=True, bottom=True, labelsize=10)
+        axarr[2].tick_params(which='both', axis='both', right=True, top=True, left=True, bottom=True, labelsize=10)
+        axarr[3].tick_params(which='both', axis='both', right=True, top=True, left=True, bottom=True, labelsize=10)
+        f.align_labels()
+        plt.plot()
+        plt.show()
+
     def ana_plot_discharge_waveform(self):
         data_wp = AnaData.retrieve('wp', self.ShotNo, 1)
         data_ECH = AnaData.retrieve('echpw', self.ShotNo, 1)
@@ -418,7 +476,7 @@ class ITB_Analysis:
         # データ取得
         title = ('#%d') % (self.ShotNo)
         vnum_ECH = data_ECH.getValNo()
-        axarr[0].set_title(title, loc='left')
+        axarr[0].set_title(title, loc='left', fontsize=16)
         view_ECH = np.array([12, 0, 1, 2, 4, 5, 6, 7])
         axarr[2].axhline(y=0, color='black', linestyle='dashed', linewidth=0.5)
         for i in range(len(view_ECH)):
@@ -440,12 +498,15 @@ class ITB_Analysis:
         axarr[2].plot(t_ip, 10*data_ip_, label='Ip')
         axarr[2].plot(t_fir, 100*data_fir_, label='ne_bar')
         axarr[0].set_xlim(3,6)
-        axarr[0].legend(frameon=False)
-        axarr[1].legend(frameon=False)
-        axarr[2].legend(frameon=False)
-        axarr[0].set_ylabel('NBI [MW]')
-        axarr[1].set_ylabel('ECH [MW]')
-        axarr[2].set_xlabel('Time [sec]')
+        axarr[0].legend(frameon=False, loc='right')
+        axarr[1].legend(frameon=False, loc='right')
+        axarr[2].legend(frameon=False, loc='right')
+        axarr[0].set_ylabel('NBI [MW]', fontsize=16)
+        axarr[1].set_ylabel('ECH [MW]', fontsize=16)
+        axarr[2].set_xlabel('Time [sec]', fontsize=16)
+        axarr[0].tick_params(which='both', axis='both', right=True, top=True, left=True, bottom=True, labelsize=12)
+        axarr[1].tick_params(which='both', axis='both', right=True, top=True, left=True, bottom=True, labelsize=12)
+        axarr[2].tick_params(which='both', axis='both', right=True, top=True, left=True, bottom=True, labelsize=12)
         plt.plot()
         plt.show()
 
@@ -684,11 +745,11 @@ def find_closest(A, target):
 
 if __name__ == "__main__":
     start = time.time()
-    itba = ITB_Analysis(143895)
+    itba = ITB_Analysis(153492)
     #itba.ana_plot_ece()
     #itba.ana_plot_stft()
-    itba.ana_plot_fluctuation()
-    #itba.ana_plot_discharge_waveform()
+    #itba.ana_plot_fluctuation()
+    itba.ana_plot_discharge_waveform_basic()
     #itba.ana_plot_allTS_sharex()
     #itba.ana_plot_discharge_waveforms(arr_ShotNo=[127704, 127705, 127709, 131617, 131618, 143883, 143895])
     t = time.time() - start
