@@ -12,7 +12,16 @@ import time
 
 class CTS_Analysis:
     def __init__(self):
-        pass
+        plt.rcParams["font.family"] = "Liberation Sans"  # 全体のフォントを設定
+        plt.rcParams["xtick.direction"] = "in"  # x軸の目盛線を内向きへ
+        plt.rcParams["ytick.direction"] = "in"  # y軸の目盛線を内向きへ
+        plt.rcParams["xtick.minor.visible"] = True  # x軸補助目盛りの追加
+        plt.rcParams["ytick.minor.visible"] = True  # y軸補助目盛りの追加
+        plt.rcParams["xtick.major.size"] = 6  # x軸主目盛り線の長さ
+        plt.rcParams["ytick.major.size"] = 6  # y軸主目盛り線の長さ
+        plt.rcParams["xtick.minor.size"] = 3  # x軸補助目盛り線の長さ
+        plt.rcParams["ytick.minor.size"] = 3  # y軸補助目盛り線の長さ
+        self.arr_color = ['blue', 'black', 'green','red', 'darkgrey', 'darkorange', 'blue', 'magenta', 'pink']
 
     def plot_volt_ctsfosc(self):
         data = VoltData.retrieve('CTSfosc1', 125687, 1, 1)
@@ -136,8 +145,7 @@ class CTS_Analysis:
         print("erapsed time for plotting STFT = %.3f sec" % t_end)
 
     def interactive_stft(self, shotNo, timedata, voltdata, val_time_show_st, val_time_show_ed, val_time_st, val_time_ed, val_time2_st, val_time2_ed, isPlot, isIndexing):
-        plt.clf()
-        fig = plt.figure(figsize=(6,8),dpi=150)
+        _,_, noise_spectrum = self.get_digitizer_noise(isLoad=False)
         nperseg = int(input('Enter nperseg: '))
         noverlap = int(input('Enter noverlap : '))
         nfft = int(input('Enter nfft : '))
@@ -194,11 +202,11 @@ class CTS_Analysis:
 
         print('start plot')
         if isPlot:
+            fig = plt.figure(figsize=(6,8),dpi=150)
             ncols = 4
             nrows = 4
             grid = GridSpec(nrows, ncols, left=0.1, bottom=0.15, right=0.94, top=0.94, wspace=0.3, hspace=0.3)
             fig = plt.figure(figsize=(8,6), dpi=150)
-            fig.clf()
             ax1 = fig.add_subplot(grid[0:3, 0:3])
             plt.title('#%d' % shotNo, loc='right')
             ax2 = fig.add_subplot(grid[3, 0:3])
@@ -224,25 +232,116 @@ class CTS_Analysis:
             print('start mean stft')
             ax3.plot(np.mean(Zxx[:, idx_time_st:idx_time_ed], axis=1), f, color='blue')
             ax3.plot(np.mean(Zxx[:, idx_time2_st:idx_time2_ed], axis=1), f, color='red')
-            ax3.plot(np.mean(Zxx[:, idx_time_st:idx_time_ed])-np.mean(Zxx[:, idx_time2_st:idx_time2_ed], axis=1), f, color='green')
+            Zxx_sub = np.mean(Zxx[:, idx_time_st:idx_time_ed], axis=1)-np.mean(Zxx[:, idx_time2_st:idx_time2_ed], axis=1)
+            ax3.plot(Zxx_sub, f, color='green')
             ax1.set_ylabel("Frequency [GHz]")
             ax2.set_xlabel("Time [sec]")
             ax3.set_xscale('log')
             #plt.ylim([0, MAXFREQ])
             ax1.set_xlim([np.min(x), np.max(x)])
             ax2.set_xlim([np.min(x), np.max(x)])
+            #ax3.set_xlim([0, 1.2*np.max(Zxx_sub)])
             ax3.set_ylim([np.min(f), np.max(f)])
             print('start show')
             #fig.tight_layout()
             plt.show()
-            plt.clf()
+
             #plt.savefig('plot.png')
             print('end plot')
+        fig = plt.figure(figsize=(6,5), dpi=150)
+        title = ('#%d') % (shotNo)
+        plt.title(title, loc='right')
+        t_probe_on = x[0] + (t[idx_time_ed] + t[idx_time_st])/2
+        t_probe_off = x[0] + (t[idx_time2_ed] + t[idx_time2_st])/2
+        spectrum_probe_on = np.mean(Zxx[:, idx_time_st:idx_time_ed], axis=1)
+        spectrum_probe_off = np.mean(Zxx[:, idx_time2_st:idx_time2_ed], axis=1)
+        label_probe_on = "Probe ON, t=%.4f" % t_probe_on
+        label_probe_off = "Probe OFF, t=%.4f" % t_probe_off
+        label_probe_onmoff = "Probe ON-OFF"
+        plt.plot(f, spectrum_probe_on, color='blue', label=label_probe_on)
+        plt.plot(f, spectrum_probe_off, color='red', label=label_probe_off)
+        plt.plot(f, spectrum_probe_on - spectrum_probe_off, color='green', label=label_probe_onmoff)
+        plt.plot(f, noise_spectrum, color='black', label='DIGI NOISE')
+        plt.xlabel("Frequency [GHz]")
+        plt.legend(frameon=False)
+        plt.yscale('log')
+        plt.xlim([np.min(f), np.max(f)])
+        plt.tick_params(which='both', axis='both', right=True, top=True, left=True, bottom=True, labelsize=10)
+        plt.show()
+        fig = plt.figure(figsize=(6,5), dpi=150)
+        title = ('SIG/NOISE, %.4f-%.4f #%d') % (t_probe_on, t_probe_off, shotNo)
+        plt.title(title, loc='right')
+        plt.plot(f, (spectrum_probe_on-spectrum_probe_off)/noise_spectrum, color='black')
+        plt.xlabel("Frequency [GHz]")
+        plt.yscale('log')
+        plt.xlim([np.min(f), np.max(f)])
+        plt.tick_params(which='both', axis='both', right=True, top=True, left=True, bottom=True, labelsize=10)
+        plt.show()
+        fig = plt.figure(figsize=(6,5), dpi=150)
+        title = ('SIG/(BG-NOISE), %.4f-%.4f #%d') % (t_probe_on, t_probe_off, shotNo)
+        plt.title(title, loc='right')
+        plt.plot(f, (spectrum_probe_on-spectrum_probe_off)/(spectrum_probe_off-noise_spectrum), color='red')
+        plt.xlabel("Frequency [GHz]")
+        plt.yscale('log')
+        plt.xlim([np.min(f), np.max(f)])
+        plt.tick_params(which='both', axis='both', right=True, top=True, left=True, bottom=True, labelsize=10)
+        plt.show()
+        filename = "CTSfosc1_spectrum_pon_poff_SIGperBGmNOISE_" + str(shotNo)
+        np.savez_compressed(filename, f, t, t_probe_on, t_probe_off, spectrum_probe_on, spectrum_probe_off, (spectrum_probe_on-spectrum_probe_off)/(spectrum_probe_off-noise_spectrum))
         t_end = time.time() - start
         print("erapsed time for STFT = %.3f sec" % t_end)
 
         t += time_offset
         return x, y, f, t, Zxx
+
+    def load_spectrums(self):
+        arr_shotNo = [164449, 164450, 164451, 164452, 164452]
+        arr_rho = [0, 0.26, 0.57, 0, 0]
+        fig = plt.figure(figsize=(6,5), dpi=150)
+        #title = ('SIG/(BG-NOISE), %.4f-%.4f #%d') % (t_probe_on, t_probe_off, shotNo)
+        plt.title("CTSfosc1", loc='right')
+        for i, idx in enumerate(arr_shotNo):
+            filename = "CTSfosc1_spectrum_pon_poff_SIGperBGmNOISE_" + str(idx) + ".npz"
+            if i == len(arr_rho)-1:
+                filename = "CTSfosc1_spectrum_pon_poff_SIGperBGmNOISE_" + str(idx) + "_v2.npz"
+
+            npz_comp = np.load(filename)
+            f = npz_comp['arr_0']
+            t = npz_comp['arr_1']
+            t_probe_on = npz_comp['arr_2']
+            t_probe_off = npz_comp['arr_3']
+            spectrum_probe_on = npz_comp['arr_4']
+            spectrum_probe_off = npz_comp['arr_5']
+            spectrum_probe_SIGperBGmNOISE = npz_comp['arr_6']
+            label = '#%d, r/a=%.2f' % (arr_shotNo[i],arr_rho[i])
+            plt.plot(f, spectrum_probe_SIGperBGmNOISE, color=self.arr_color[i], label=label)
+        plt.legend(frameon=False)
+        plt.xlabel("Frequency [GHz]")
+        plt.yscale('log')
+        plt.xlim([np.min(f), np.max(f)])
+        plt.ylim(0.01, 100)
+        plt.tick_params(which='both', axis='both', right=True, top=True, left=True, bottom=True, labelsize=10)
+        plt.show()
+
+    def load_spectrum(self, shotNo):
+        filename = "CTSfosc1_spectrum_pon_poff_SIGperBGmNOISE_" + str(shotNo) + ".npz"
+        npz_comp = np.load(filename)
+        f = npz_comp['arr_0']
+        t = npz_comp['arr_1']
+        t_probe_on = npz_comp['arr_2']
+        t_probe_off = npz_comp['arr_3']
+        spectrum_probe_on = npz_comp['arr_4']
+        spectrum_probe_off = npz_comp['arr_5']
+        spectrum_probe_SIGperBGmNOISE = npz_comp['arr_6']
+        fig = plt.figure(figsize=(6,5), dpi=150)
+        title = ('SIG/(BG-NOISE), %.4f-%.4f #%d') % (t_probe_on, t_probe_off, shotNo)
+        plt.title(title, loc='right')
+        plt.plot(f, spectrum_probe_SIGperBGmNOISE, color='red')
+        plt.xlabel("Frequency [GHz]")
+        plt.yscale('log')
+        plt.xlim([np.min(f), np.max(f)])
+        plt.tick_params(which='both', axis='both', right=True, top=True, left=True, bottom=True, labelsize=10)
+        plt.show()
 
     def stft(self, shotNo, val_time_st, val_time_ed, val_time2_st, val_time2_ed, isLocal=False):
         if isLocal:
@@ -308,6 +407,46 @@ class CTS_Analysis:
         ax3.set_xlim([np.min(f), np.max(f)])
         plt.show()
 
+    def get_digitizer_noise(self, isLoad=False):
+        shotNo = 164269 #shot number for getting digitizer noise
+        if isLoad:
+            nperseg = int(input('Enter nperseg: '))
+            noverlap = int(input('Enter noverlap : '))
+            nfft = int(input('Enter nfft : '))
+            if nperseg == 0:
+                nperseg = 2 ** 12
+            if noverlap == 0:
+                noverlap = nperseg // 8
+            if nfft == 0:
+                nfft = nperseg
+            y, x = self.load_data(shotNo=int(shotNo))
+            time_offset = x[0]
+            freq_LO = 74e9
+
+            MAXFREQ = 1e0
+            N = 1e0 * np.abs(1 / (x[1] - x[2]))
+            print('start spectgram')
+            f, t, Zxx = sig.spectrogram(y, fs=N, nperseg=nperseg, noverlap=noverlap, nfft=nfft)#, window='hamming', nperseg=nperseg, mode='complex')
+            spectrum = np.mean(Zxx, axis=1)
+            f += freq_LO
+            f /= 1e9
+            filename = "CTSfosc1_digi_noise_" + str(shotNo)
+            np.savez_compressed(filename, f, t, spectrum)
+
+        else:
+            filename = "CTSfosc1_digi_noise_" + str(shotNo) + ".npz"
+            npz_comp = np.load(filename)
+            f = npz_comp['arr_0']
+            t = npz_comp['arr_1']
+            spectrum = npz_comp['arr_2']
+
+        return f, t, spectrum
+
+
+
+
+
+
     def interactive_analysis(self):
         print("Enter 'q' then finish:")
         print("'q': quit")
@@ -318,12 +457,24 @@ class CTS_Analysis:
         print("'stft': Calc STFT")
         print("'pstft': Plot STFT figure")
         print("'fft': Plot STFT figure")
-        val_time_show_st = 3.99
-        val_time_show_ed = 4.07
-        val_time_st = 4.00
-        val_time_ed = 4.01
-        val_time2_st = 4.02
-        val_time2_ed = 4.03
+        #val_time_show_st = 3.48
+        #val_time_show_ed = 3.56
+        #val_time_st = 3.505
+        #val_time_ed = 3.56
+        #val_time2_st = 3.48
+        #val_time2_ed = 3.49
+        val_time_show_st = 4.00
+        val_time_show_ed = 4.08
+        val_time_st = 4.058
+        val_time_ed = 4.070
+        val_time2_st = 4.035
+        val_time2_ed = 4.04
+        #val_time_show_st = 6.43
+        #val_time_show_ed = 6.51
+        #val_time_st = 6.43
+        #val_time_ed = 6.49
+        #val_time2_st = 6.502
+        #val_time2_ed = 6.51
         while True:
             val = input('Enter command: ')
             try:
@@ -337,10 +488,10 @@ class CTS_Analysis:
                     voltdata, timedata = self.load_data(shotNo=int(shotNo))
                 if val == 'SetTime' or str.upper(val) == 'ST':
                     #val_time_st, val_time_ed, val_time2_st, val_time2_ed
-                    val_time_st = input('Enter val_time_st: ')
-                    val_time_ed = input('Enter val_time_ed: ')
-                    val_time2_st = input('Enter val_time2_st: ')
-                    val_time2_ed = input('Enter val_time2_ed: ')
+                    val_time_st = input('Enter val_time_st (Probe ON): ')
+                    val_time_ed = input('Enter val_time_ed (Prove ON): ')
+                    val_time2_st = input('Enter val_time2_st (Probe OFF): ')
+                    val_time2_ed = input('Enter val_time2_ed (Probe OFF): ')
                 if val == 'SetShowTime' or str.upper(val) == 'SST':
                     val_time_show_st = input('Enter val_time_show_st: ')
                     val_time_show_ed = input('Enter val_time_show_ed: ')
@@ -426,5 +577,8 @@ if __name__ == "__main__":
     ctsa = CTS_Analysis()
     #ctsa.stft(shotNo=161898, val_time_st=3.401, val_time_ed=3.404, val_time2_st=3.405, val_time2_ed=3.408, isLocal=True)
     ctsa.interactive_analysis()
+    #ctsa.load_spectrum(164452)
+    #ctsa.load_spectrums()
+    #ctsa.get_digitizer_noise(isLoad=True)
     t = time.time() - start
     print("erapsed time= %.3f sec" % t)

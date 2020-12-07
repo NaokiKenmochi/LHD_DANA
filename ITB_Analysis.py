@@ -17,10 +17,11 @@ class ITB_Analysis:
         plt.rcParams["ytick.direction"] = "in"  # y軸の目盛線を内向きへ
         plt.rcParams["xtick.minor.visible"] = True  # x軸補助目盛りの追加
         plt.rcParams["ytick.minor.visible"] = True  # y軸補助目盛りの追加
-        plt.rcParams["xtick.major.size"] = 8  # x軸主目盛り線の長さ
-        plt.rcParams["ytick.major.size"] = 8  # y軸主目盛り線の長さ
-        plt.rcParams["xtick.minor.size"] = 4  # x軸補助目盛り線の長さ
-        plt.rcParams["ytick.minor.size"] = 4  # y軸補助目盛り線の長さ
+        plt.rcParams["xtick.major.size"] = 6  # x軸主目盛り線の長さ
+        plt.rcParams["ytick.major.size"] = 6  # y軸主目盛り線の長さ
+        plt.rcParams["xtick.minor.size"] = 3  # x軸補助目盛り線の長さ
+        plt.rcParams["ytick.minor.size"] = 3  # y軸補助目盛り線の長さ
+        self.arr_color = ['black', 'darkgrey', 'red', 'darkorange', 'green', 'blue', 'magenta', 'pink']
 
         self.ShotNo = ShotNo
 
@@ -58,8 +59,7 @@ class ITB_Analysis:
         labels = []
 
 
-        plt.clf()
-        f, axarr = plt.subplots(3, len(t), gridspec_kw={'wspace': 0, 'hspace': 0}, figsize=(2*len(t),6), dpi=100)
+        f, axarr = plt.subplots(3, len(t), gridspec_kw={'wspace': 0, 'hspace': 0}, figsize=(1.5*len(t),5), dpi=100)
 
         for i, ax in enumerate(f.axes):
             ax.grid('on', linestyle='--')
@@ -78,15 +78,15 @@ class ITB_Analysis:
             dn = dne[idx, :]  # R 次元でのスライスを取得
             T_fit = Te_fit[idx, :]  # R 次元でのスライスを取得
             n_fit = ne_fit[idx, :]  # R 次元でのスライスを取得
-            axarr[1,idx].plot(r, T_fit,  '-', color='red')
+            #axarr[1,idx].plot(r, T_fit,  '-', color='red')
+            #axarr[0,idx].plot(r, n_fit,  '-', color='blue')
             axarr[1,idx].errorbar(r, T, yerr=dT, capsize=2, fmt='o', markersize=2, ecolor='red', markeredgecolor='red', color='w')
             axarr[0,idx].errorbar(r, n, yerr=dn, capsize=2, fmt='o', markersize=2, ecolor='blue', markeredgecolor='blue', color='w')
-            axarr[0,idx].plot(r, n_fit,  '-', color='blue')
             axarr[0,idx].set_xlim(-1.2, 1.2)
             axarr[1,idx].set_xlim(-1.2, 1.2)
             axarr[2,idx].set_xlim(-1.2, 1.2)
-            axarr[0,idx].set_ylim(0, 6.5)
-            axarr[1,idx].set_ylim(0, 10.5)
+            axarr[0,idx].set_ylim(0, 2.5)
+            axarr[1,idx].set_ylim(0, 15.5)
             title_time = ('t=%.3fsec') % (t[idx])
             axarr[0,idx].set_title(title_time)
             axarr[2, idx].set_xlabel(r'$r_{eff}/a_{99}$')
@@ -136,7 +136,115 @@ class ITB_Analysis:
         axarr[2, 0].set_ylabel(r'$\iota/2\pi$')
 
 
-        #plt.savefig("Te_ne_iota_No%d.png" % self.ShotNo)
+        plt.savefig("Te_ne_iota_No%d.png" % self.ShotNo)
+        #plt.show()
+        plt.close()
+
+    def ana_plot_allMSE_sharex(self):
+
+        data = AnaData.retrieve('tsmap_calib', self.ShotNo, 1)
+        data_mse = AnaData.retrieve('lhdmse1_iota_ms', self.ShotNo, 1)
+
+        # 次元 'R' のデータを取得 (要素数137 の一次元配列(numpy.Array)が返ってくる)
+        r = data.getDimData('R')
+
+        # 次元 'Time' のデータを取得 (要素数96 の一次元配列(numpy.Array)が返ってくる)
+        t = data.getDimData('Time')
+        t_mse = data_mse.getDimData('t')
+
+        # 変数 'Te' のデータを取得 (要素数 136x96 の二次元配列(numpy.Array)が返ってくる)
+        reff = data.getValData('reff/a99')
+        Te = data.getValData('Te')
+        dTe = data.getValData('dTe')
+        ne = data.getValData('ne_calFIR')
+        dne = data.getValData('dne_calFIR')
+        Te_fit = data.getValData('Te_fit')
+        ne_fit = data.getValData('ne_fit')
+
+
+        labels = []
+
+
+        f, axarr = plt.subplots(3, len(t_mse), gridspec_kw={'wspace': 0, 'hspace': 0}, figsize=(1.5*len(t_mse),5), dpi=150)
+
+        for i, ax in enumerate(f.axes):
+            ax.grid('on', linestyle='--')
+            if i % len(t_mse) != 0:
+                ax.set_yticklabels([])
+            if i < 2*len(t_mse):
+                ax.set_xticklabels([])
+        # データ取得
+        title = ('#%d\n') % (self.ShotNo)
+        axarr[0,0].set_title(title, loc='left', fontsize=16)
+        idx_arr_time = find_closest(t, t_mse)
+        for i, idx in enumerate(idx_arr_time):
+            r = reff[idx, :]
+            T = Te[idx, :]  # R 次元でのスライスを取得
+            dT = dTe[idx, :]  # R 次元でのスライスを取得
+            n = ne[idx, :]  # R 次元でのスライスを取得
+            dn = dne[idx, :]  # R 次元でのスライスを取得
+            #T_fit = Te_fit[idx, :]  # R 次元でのスライスを取得
+            #n_fit = ne_fit[idx, :]  # R 次元でのスライスを取得
+            #axarr[1,i].plot(r, T_fit,  '-', color='red')
+            axarr[1,i].errorbar(r, T, yerr=dT, capsize=2, fmt='o', markersize=2, ecolor='red', markeredgecolor='red', color='w')
+            axarr[0,i].errorbar(r, n, yerr=dn, capsize=2, fmt='o', markersize=2, ecolor='blue', markeredgecolor='blue', color='w')
+            #axarr[0,i].plot(r, n_fit,  '-', color='blue')
+            axarr[0,i].set_xlim(-1.2, 1.2)
+            axarr[1,i].set_xlim(-1.2, 1.2)
+            axarr[2,i].set_xlim(-1.2, 1.2)
+            axarr[0,i].set_ylim(0, 2.2)
+            axarr[1,i].set_ylim(0, 17)
+            axarr[0, i].tick_params(which='both', axis='both', right=True, top=True, left=True, bottom=True, labelsize=8)
+            axarr[1, i].tick_params(which='both', axis='both', right=True, top=True, left=True, bottom=True, labelsize=8)
+            axarr[2, i].tick_params(which='both', axis='both', right=True, top=True, left=True, bottom=True, labelsize=8)
+            title_time = ('t=%.3fsec') % (t[idx])
+            axarr[0,i].set_title(title_time)
+            axarr[2, i].set_xlabel(r'$r_{eff}/a_{99}$')
+
+        '''
+        try:
+            data_lhdgauss = AnaData.retrieve('LHDGAUSS_DEPROF', self.ShotNo, 1)
+
+            reff_lhdgauss = data_lhdgauss.getDimData('reff')
+
+            t_lhdgauss = data_lhdgauss.getDimData('time')
+
+            sum_power_density = data_lhdgauss.getValData('Sum_Power_Density')
+            sum_total_power = data_lhdgauss.getValData('Sum_Total_Power')
+            idx_arr_time_lhdgauss = find_closest(t_lhdgauss, t_mse)
+            for i, idx in enumerate(idx_arr_time_lhdgauss):
+                sum_pd = sum_power_density[idx, :]
+                sum_tp = sum_total_power[idx, :]
+                axarr[2,i].plot(-reff_lhdgauss, sum_pd/2, '-', label='Power_Density', color='gray')
+                axarr[2,i].plot(-reff_lhdgauss, sum_tp/2, '--', label='Total_Power', color='black')
+                axarr[2,i].set_ylim(0, 1.2)
+        except Exception as e:
+            print(e)
+        '''
+
+        reff_mse = data_mse.getValData('reff/a99')
+        iota = data_mse.getValData('iota')
+        iota_vac = data_mse.getValData('iota_vac')
+        iota_data_ip = data_mse.getValData('iota_data_ip')
+        iota_data_error_ip = data_mse.getValData('iota_data_error_ip')
+        for i in range(len(t_mse)):
+            r_1d = reff_mse[i, :]
+            iota_1d = iota[i, :]  # R 次元でのスライスを取得
+            iota_vac_1d = iota_vac[i, :]  # R 次元でのスライスを取得
+            iota_data_ip_1d = iota_data_ip[i, :]  # R 次元でのスライスを取得
+            iota_data_error_ip_1d = iota_data_error_ip[i, :]  # R 次元でのスライスを取得
+            axarr[2,i].plot(r_1d, iota_1d, '-', label='iota', color='green')
+            axarr[2,i].errorbar(r_1d, iota_data_ip_1d, yerr=iota_data_error_ip_1d, capsize=2, fmt='o', markersize=2, ecolor='green', markeredgecolor='green', color='w')
+            axarr[2,i].plot(r_1d, iota_vac_1d, '--', label='iota_vac', color='gray')
+            axarr[2,i].set_ylim(0, 1.2)
+
+        axarr[0, 0].set_ylabel(r'$n_e\ [10^{19} m^{-3}]$')
+        axarr[1, 0].set_ylabel(r'$T_e\ [keV]$')
+        axarr[2, 0].set_ylabel(r'$\iota/2\pi$')
+        f.align_labels()
+
+
+        #plt.savefig("Te_ne_iota_allMSE_No%d.png" % self.ShotNo)
         plt.show()
         plt.close()
 
@@ -193,7 +301,7 @@ class ITB_Analysis:
         val_arr_time = t[idx_arr_time]
 
         plt.clf()
-        f, axarr = plt.subplots(3, len(t_mse), gridspec_kw={'wspace': 0, 'hspace': 0}, figsize=(2*len(t_mse),6), dpi=150)
+        f, axarr = plt.subplots(3, len(t_mse), gridspec_kw={'wspace': 0, 'hspace': 0}, figsize=(2*len(t_mse),6), dpi=100)
 
         for i, ax in enumerate(f.axes):
             ax.grid('on', linestyle='--')
@@ -374,21 +482,27 @@ class ITB_Analysis:
         # 次元 'Time' のデータを取得 (要素数96 の一次元配列(numpy.Array)が返ってくる)
         t_fir = data.getDimData('Time')
 
-        plt.clf()
-        plt.close()
-        f, axarr = plt.subplots(2, 1, gridspec_kw={'wspace': 0, 'hspace': 0}, figsize=(16, 18), dpi=150)
+        f, axarr = plt.subplots(2, 1, gridspec_kw={'wspace': 0, 'hspace': 0}, figsize=(8, 6), dpi=150)
 
         axarr[0].set_title(self.ShotNo, fontsize=18, loc='right')
-        axarr[0].set_ylabel(r'$T_e$', fontsize=18)
-        axarr[1].set_xlabel(r'$Time [sec]$', fontsize=18)
-        axarr[1].set_ylabel(r'$n_e$', fontsize=18)
-        axarr[0].set_xlim(3, 6.5)
-        axarr[1].set_xlim(3, 6.5)
+        axarr[0].set_ylabel(r'$T_e (ECE)$', fontsize=18)
+        axarr[1].set_xlabel('Time [sec]', fontsize=18)
+        axarr[1].set_ylabel(r'$n_eL\ [10^{19}m^{-2}]$', fontsize=18)
+        axarr[0].set_ylim(0, 15.3)
+        axarr[0].set_xlim(5.0, 6.5)
+        axarr[1].set_xlim(5.0, 6.5)
+        #axarr[0].set_xlim(3, 6)
+        #axarr[1].set_xlim(3, 6)
+        #axarr[0].set_ylim(0, )
+        #axarr[1].set_ylim(0, )
         axarr[0].set_xticklabels([])
+        axarr[0].tick_params(which='both', axis='both', right=True, top=True, left=True, bottom=True, labelsize=12)
+        axarr[1].tick_params(which='both', axis='both', right=True, top=True, left=True, bottom=True, labelsize=12)
         for i in range(vnum):
             axarr[0].plot(t, Te)
             ne_bar = data.getValData(i)
             axarr[1].plot(t_fir, ne_bar)
+        f.align_labels()
         plt.show()
         #plt.savefig("timetrace_ECE_FIR_No%d.png" % self.ShotNo)
 
@@ -403,7 +517,7 @@ class ITB_Analysis:
         t_fir = data_fir.getDimData('Time')
 
         plt.clf()
-        f, axarr = plt.subplots(4, 1, gridspec_kw={'wspace': 0, 'hspace': 0}, figsize=(10,6), dpi=300, sharex=True)
+        f, axarr = plt.subplots(4, 1, gridspec_kw={'wspace': 0, 'hspace': 0}, figsize=(7,5), dpi=300, sharex=True)
 
         # データ取得
         title = ('#%d') % (self.ShotNo)
@@ -412,7 +526,7 @@ class ITB_Analysis:
         view_ECH = np.array([12, 0, 1, 2, 4, 5, 6, 7])
         for i in range(len(view_ECH)):
             data_ = data_ECH.getValData(view_ECH[i])
-            axarr[3].plot(t_ECH, data_, '-', label=data_ECH.getValName(view_ECH[i]))
+            axarr[3].plot(t_ECH, data_, '-', label=data_ECH.getValName(view_ECH[i]), color=self.arr_color[i])
 
         arr_data_name = ['nb1', 'nb2', 'nb3', 'nb4a', 'nb4b', 'nb5a', 'nb5b']
         for i in range(len(arr_data_name)):
@@ -420,7 +534,7 @@ class ITB_Analysis:
             data_NBI_ = data_NBI.getValData(1)
             t_NBI = data_NBI.getDimData('time')
             label = str.upper(arr_data_name[i])
-            axarr[2].plot(t_NBI, data_NBI_, label=label)
+            axarr[2].plot(t_NBI, data_NBI_, label=label, color=self.arr_color[i])
 
         data_wp_ = data_wp.getValData('Wp')
         data_fir_ = data_fir.getValData(0)
@@ -431,20 +545,81 @@ class ITB_Analysis:
         axarr[1].set_ylim(0,)
         axarr[2].set_ylim(0,)
         axarr[3].set_ylim(0,)
-        axarr[2].legend(frameon=False, loc='right', fontsize=8)
-        axarr[3].legend(frameon=False, loc='right', fontsize=8)
-        axarr[0].set_ylabel('Wp [kJ]', fontsize=14)
-        axarr[1].set_ylabel(r'$\overline{n_e}\ [10^{19} m^{-3}$]', fontsize=14)
-        axarr[2].set_ylabel('NBI [MW]', fontsize=12)
-        axarr[3].set_ylabel('ECH [MW]', fontsize=12)
-        axarr[3].set_xlabel('Time [sec]', fontsize=12)
-        axarr[0].tick_params(which='both', axis='both', right=True, top=True, left=True, bottom=True, labelsize=10)
-        axarr[1].tick_params(which='both', axis='both', right=True, top=True, left=True, bottom=True, labelsize=10)
-        axarr[2].tick_params(which='both', axis='both', right=True, top=True, left=True, bottom=True, labelsize=10)
-        axarr[3].tick_params(which='both', axis='both', right=True, top=True, left=True, bottom=True, labelsize=10)
+        axarr[2].legend(frameon=False, loc='right', fontsize=5)
+        axarr[3].legend(frameon=False, loc='right', fontsize=5)
+        axarr[0].set_ylabel('Wp [kJ]', fontsize=11)
+        axarr[1].set_ylabel(r'$\overline{n_e}\ [10^{19} m^{-3}$]', fontsize=10)
+        axarr[2].set_ylabel('NBI [MW]', fontsize=11)
+        axarr[3].set_ylabel('ECH [MW]', fontsize=11)
+        axarr[3].set_xlabel('Time [sec]', fontsize=11)
+        axarr[0].tick_params(which='both', axis='both', right=True, top=True, left=True, bottom=True, labelsize=8)
+        axarr[1].tick_params(which='both', axis='both', right=True, top=True, left=True, bottom=True, labelsize=8)
+        axarr[2].tick_params(which='both', axis='both', right=True, top=True, left=True, bottom=True, labelsize=8)
+        axarr[3].tick_params(which='both', axis='both', right=True, top=True, left=True, bottom=True, labelsize=8)
         f.align_labels()
         plt.plot()
         plt.show()
+        #plt.savefig("timetrace_%d.png" % self.ShotNo)
+
+    def ana_plot_discharge_waveform4ITB(self):
+        data_wp = AnaData.retrieve('wp', self.ShotNo, 1)
+        data_ECH = AnaData.retrieve('echpw', self.ShotNo, 1)
+        data_fir = AnaData.retrieve('fir_nel', self.ShotNo, 1)
+        data_ip = AnaData.retrieve('ip', self.ShotNo, 1)
+
+        # 次元 'R' のデータを取得 (要素数137 の一次元配列(numpy.Array)が返ってくる)
+        t_ECH = data_ECH.getDimData('Time')
+        t_Wp = data_wp.getDimData('Time')
+        t_fir = data_fir.getDimData('Time')
+        t_ip = data_ip.getDimData('Time')
+
+        f, axarr = plt.subplots(5, 1, gridspec_kw={'wspace': 0, 'hspace': 0}, figsize=(7,7), dpi=150, sharex=True)
+
+        # データ取得
+        title = ('#%d') % (self.ShotNo)
+        vnum_ECH = data_ECH.getValNo()
+        axarr[0].set_title(title, loc='left', fontsize=16)
+        axarr[2].axhline(y=0, color='black', linestyle='dashed', linewidth=0.5)
+        view_ECH = np.array([12, 0, 1, 2, 4, 5, 6, 7])
+        for i in range(len(view_ECH)):
+            data_ = data_ECH.getValData(view_ECH[i])
+            axarr[4].plot(t_ECH, data_, '-', label=data_ECH.getValName(view_ECH[i]), color=self.arr_color[i])
+
+        arr_data_name = ['nb1', 'nb2', 'nb3', 'nb4a', 'nb4b', 'nb5a', 'nb5b']
+        for i in range(len(arr_data_name)):
+            data_NBI = AnaData.retrieve(arr_data_name[i] + 'pwr_temporal', self.ShotNo, 1)
+            data_NBI_ = data_NBI.getValData(1)
+            t_NBI = data_NBI.getDimData('time')
+            label = str.upper(arr_data_name[i])
+            axarr[3].plot(t_NBI, data_NBI_, label=label, color=self.arr_color[i])
+
+        data_wp_ = data_wp.getValData('Wp')
+        data_fir_ = data_fir.getValData(0)
+        data_ip_ = data_ip.getValData('Ip')
+        axarr[0].plot(t_Wp, data_wp_, color='black')
+        axarr[1].plot(t_fir, data_fir_, color='red')
+        axarr[2].plot(t_ip, data_ip_, label='Ip', color='blue')
+        axarr[0].set_xlim(2.8,6)
+        axarr[0].set_ylim(0,)
+        axarr[1].set_ylim(0,)
+        axarr[3].set_ylim(0,)
+        axarr[4].set_ylim(0,)
+        axarr[3].legend(frameon=False, loc='right', fontsize=7)
+        axarr[4].legend(frameon=False, loc='right', fontsize=7)
+        axarr[0].set_ylabel('Wp [kJ]', fontsize=11)
+        axarr[1].set_ylabel(r'$\overline{n_e}\ [10^{19} m^{-3}$]', fontsize=10)
+        axarr[2].set_ylabel('Ip [kA]', fontsize=11)
+        axarr[3].set_ylabel('NBI [MW]', fontsize=11)
+        axarr[4].set_ylabel('ECH [MW]', fontsize=11)
+        axarr[4].set_xlabel('Time [sec]', fontsize=11)
+        axarr[0].tick_params(which='both', axis='both', right=True, top=True, left=True, bottom=True, labelsize=9)
+        axarr[1].tick_params(which='both', axis='both', right=True, top=True, left=True, bottom=True, labelsize=9)
+        axarr[2].tick_params(which='both', axis='both', right=True, top=True, left=True, bottom=True, labelsize=9)
+        axarr[3].tick_params(which='both', axis='both', right=True, top=True, left=True, bottom=True, labelsize=9)
+        axarr[4].tick_params(which='both', axis='both', right=True, top=True, left=True, bottom=True, labelsize=9)
+        f.align_labels()
+        #plt.show()
+        plt.savefig("timetrace_%d.png" % self.ShotNo)
 
     def ana_plot_discharge_waveform(self):
         data_wp = AnaData.retrieve('wp', self.ShotNo, 1)
@@ -512,7 +687,7 @@ class ITB_Analysis:
 
     def ana_plot_discharge_waveforms(self, arr_ShotNo):
         plt.clf()
-        f, axarr = plt.subplots(3, 1, gridspec_kw={'wspace': 0, 'hspace': 0}, figsize=(10,6), dpi=300, sharex=True)
+        f, axarr = plt.subplots(3, 1, gridspec_kw={'wspace': 0, 'hspace': 0}, figsize=(7,5), dpi=150, sharex=True)
         axarr[2].axhline(y=0, color='black', linestyle='dashed', linewidth=0.5)
         for i in range(len(arr_ShotNo)):
            data_wp = AnaData.retrieve('wp', arr_ShotNo[i], 1)
@@ -535,16 +710,20 @@ class ITB_Analysis:
         axarr[0].set_title('#' + title[1:-1], loc='left')
 
 
-        axarr[0].set_xlim(3,8)
+        axarr[0].set_xlim(3,6)
         axarr[0].set_ylim(0,)
         axarr[1].set_ylim(0,)
-        axarr[0].legend(frameon=False)
-        axarr[1].legend(frameon=False)
-        axarr[2].legend(frameon=False)
-        axarr[0].set_ylabel('Wp [kJ]')
-        axarr[1].set_ylabel(r'$n_{e_bar} [10^{19}m^{-3}]$')
-        axarr[2].set_ylabel('Ip [kA]')
-        axarr[2].set_xlabel('Time [sec]')
+        axarr[0].legend(frameon=False, loc='right', fontsize=7)
+        axarr[1].legend(frameon=False, loc='right', fontsize=7)
+        axarr[2].legend(frameon=False, loc='right', fontsize=7)
+        axarr[0].set_ylabel('Wp [kJ]', fontsize=11)
+        axarr[1].set_ylabel(r'$\overline{n_e}\ [10^{19} m^{-3}$]', fontsize=11)
+        axarr[2].set_ylabel('Ip [kA]', fontsize=11)
+        axarr[2].set_xlabel('Time [sec]', fontsize=11)
+        axarr[0].tick_params(which='both', axis='both', right=True, top=True, left=True, bottom=True, labelsize=9)
+        axarr[1].tick_params(which='both', axis='both', right=True, top=True, left=True, bottom=True, labelsize=9)
+        axarr[2].tick_params(which='both', axis='both', right=True, top=True, left=True, bottom=True, labelsize=9)
+        f.align_labels()
         plt.plot()
         plt.show()
 
@@ -592,8 +771,6 @@ class ITB_Analysis:
         #plt.ylim(-0.7, 0.7)
         #plt.show()
         # 変数 'Te' のデータを取得 (要素数 136x96 の二次元配列(numpy.Array)が返ってくる)
-        plt.clf()
-        fig = plt.figure(figsize=(6,8),dpi=150)
         nperseg = int(input('Enter nperseg: '))
         noverlap = int(input('Enter noverlap : '))
         nfft = int(input('Enter nfft : '))
@@ -627,7 +804,6 @@ class ITB_Analysis:
         nrows = 4
         grid = GridSpec(nrows, ncols, left=0.1, bottom=0.15, right=0.94, top=0.94, wspace=0.3, hspace=0.3)
         fig = plt.figure(figsize=(8,6), dpi=150)
-        fig.clf()
         ax1 = fig.add_subplot(grid[0:3, 0:3])
         plt.title('#%d' % self.ShotNo, loc='right')
         ax2 = fig.add_subplot(grid[3, 0:3])
@@ -641,7 +817,8 @@ class ITB_Analysis:
         print('start pcolormesh')
         ax1.pcolormesh(t + time_offset, f, np.abs(Zxx), vmin=0, vmax=vmax, cmap='inferno')
         print('start xyplot')
-        ax2.plot(x[::10], y[::10])
+        #ax2.plot(x[::10], y[::10])
+        ax2.plot(x, y)
         print('start mean stft')
         ax1.set_ylabel("Frequency [kHz]")
         ax2.set_xlabel("Time [sec]")
@@ -654,7 +831,6 @@ class ITB_Analysis:
         print('start show')
         #fig.tight_layout()
         plt.show()
-        plt.clf()
         #plt.savefig('plot.png')
         print('end plot')
         t_end = time.time() - start
@@ -715,12 +891,13 @@ class ITB_Analysis:
         axarr[2].set_ylim(0, 50)
         axarr[0].set_xticklabels([])
         axarr[1].set_xticklabels([])
-        im0 = axarr[0].pcolormesh(t, f, data_3d[:, :, 0].T, cmap='jet', vmax=1e-10)
+        im0 = axarr[0].pcolormesh(t, f, data_3d[:, :, 0].T, cmap='jet', vmax=1e-9)
         im1 = axarr[1].pcolormesh(t, f, data_3d[:, :, 1].T, cmap='jet')
         im2 = axarr[2].pcolormesh(t, f, data_3d[:, :, 3].T, cmap='jet')
         fig.colorbar(im0, ax=axarr[0], pad=0.01)
         fig.colorbar(im1, ax=axarr[1], pad=0.01)
         fig.colorbar(im2, ax=axarr[2], pad=0.01)
+        #plt.savefig("fmp_psd_No%d.png" % self.ShotNo)
         plt.show()
 
 def getNearestIndex(list, num):
@@ -745,12 +922,23 @@ def find_closest(A, target):
 
 if __name__ == "__main__":
     start = time.time()
-    itba = ITB_Analysis(153492)
+    #for i in range(163943, 163975):
+    #    itba = ITB_Analysis(i)
+    #    #itba.ana_plot_ece()
+    #    itba.ana_plot_discharge_waveform4ITB()
+    #    itba.ana_plot_fluctuation()
+    #    itba.ana_plot_allTS_sharex()
+    #ShotNo = input('Enter Shot Number: ')
+    #ShotNo = sys.argv[1]
+    #itba = ITB_Analysis(int(ShotNo))
+    itba = ITB_Analysis(150701)
     #itba.ana_plot_ece()
-    #itba.ana_plot_stft()
+    itba.ana_plot_stft()
     #itba.ana_plot_fluctuation()
-    itba.ana_plot_discharge_waveform_basic()
+    #itba.ana_plot_allMSE_sharex()
+    #itba.ana_plot_discharge_waveform_basic()
     #itba.ana_plot_allTS_sharex()
     #itba.ana_plot_discharge_waveforms(arr_ShotNo=[127704, 127705, 127709, 131617, 131618, 143883, 143895])
+    #itba.ana_plot_discharge_waveforms(arr_ShotNo=[163958, 163959, 163960, 163963, 163964, 163965, 163966, 163967])
     t = time.time() - start
     print("erapsed time= %.3f sec" % t)
