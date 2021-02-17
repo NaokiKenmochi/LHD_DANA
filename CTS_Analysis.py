@@ -84,12 +84,12 @@ class CTS_Analysis:
 
     def interactive_stft_raw_plot(self, shotNo, x, y, f, t, Zxx):
         start = time.time()
-        cof_vmax = float(input('Enter cof_vmax: '))
+        coef_vmax = float(input('Enter coef_vmax: '))
         val_freq_st = float(input('Enter val_freq_st: '))
         val_freq_ed = float(input('Enter val_freq_ed: '))
         val_time_st = float(input('Enter val_time_st: '))
         val_time_ed = float(input('Enter val_time_ed: '))
-        vmax = cof_vmax*np.max(Zxx)
+        vmax = coef_vmax*np.max(Zxx)
         idx_freq_st = getNearestIndex(f, val_freq_st)
         idx_freq_ed = getNearestIndex(f, val_freq_ed)
         idx_time_st = getNearestIndex(t, val_time_st)
@@ -99,63 +99,66 @@ class CTS_Analysis:
         nrows = 5
         grid = GridSpec(nrows, ncols, left=0.1, bottom=0.15, right=0.94, top=0.94, wspace=0.3, hspace=0.3)
         fig = plt.figure(figsize=(8, 6), dpi=150)
-        fig.clf()
         ax1 = fig.add_subplot(grid[0:4, 0])
         plt.title('CTSfosc1 #%d' % shotNo)#, loc='left')
         ax2 = fig.add_subplot(grid[4, 0])
-        plt.figure(figsize=(8, 6), dpi=150)
         im0 = ax1.pcolormesh(t[idx_time_st:idx_time_ed], f[idx_freq_st:idx_freq_ed], np.abs(Zxx[idx_freq_st:idx_freq_ed, idx_time_st:idx_time_ed]), vmin=0, vmax=vmax, cmap='inferno')
         ax2.plot(x[::2000], y[::2000])
         ax1.set_ylabel("Frequency [GHz]")
         ax2.set_xlabel("Time [sec]")
         ax2.set_ylabel("CTS [V]")
+        ax1.tick_params(which='both', axis='both', right=True, top=True, left=True, bottom=True, labelsize=10)
+        ax2.tick_params(which='both', axis='both', right=True, top=True, left=True, bottom=True, labelsize=10)
         # plt.ylim([0, MAXFREQ])
         #ax1.set_xlim([np.min(x), np.max(x)])
         ax2.set_xlim(t[idx_time_st], t[idx_time_ed] + (t[idx_time_ed]-t[idx_time_st])*0.12)
         #plt.colorbar()
         fig.colorbar(im0, ax=ax1, pad=0.01, fraction=0.1)
         plt.show()
-        plt.clf()
 
         t_end = time.time() - start
         print("erapsed time for plotting STFT = %.3f sec" % t_end)
 
     def interactive_stft_plot(self, shotNo, f, t, Zxx):
         start = time.time()
-        cof_vmax = float(input('Enter cof_vmax: '))
+        coef_vmax = float(input('Enter coef_vmax: '))
         val_freq_st = float(input('Enter val_freq_st: '))
         val_freq_ed = float(input('Enter val_freq_ed: '))
         val_time_st = float(input('Enter val_time_st: '))
         val_time_ed = float(input('Enter val_time_ed: '))
-        vmax = cof_vmax*np.max(Zxx)
+        vmax = coef_vmax*np.max(Zxx)
         idx_freq_st = getNearestIndex(f, val_freq_st)
         idx_freq_ed = getNearestIndex(f, val_freq_ed)
         idx_time_st = getNearestIndex(t, val_time_st)
         idx_time_ed = getNearestIndex(t, val_time_ed)
-        plt.figure(figsize=(8, 6), dpi=150)
+        fig = plt.figure(figsize=(8, 6), dpi=150)
         plt.pcolormesh(t[idx_time_st:idx_time_ed], f[idx_freq_st:idx_freq_ed], np.abs(Zxx[idx_freq_st:idx_freq_ed, idx_time_st:idx_time_ed]), vmin=0, vmax=vmax, cmap='inferno')
         plt.title('#%d' % shotNo, loc='right')
         plt.xlabel("Time [sec]")
         plt.ylabel("Frequency [GHz]")
         plt.colorbar()
         plt.show()
-        plt.clf()
 
         t_end = time.time() - start
         print("erapsed time for plotting STFT = %.3f sec" % t_end)
 
     def interactive_stft(self, shotNo, timedata, voltdata, val_time_show_st, val_time_show_ed, val_time_st, val_time_ed, val_time2_st, val_time2_ed, isPlot, isIndexing):
         _,_, noise_spectrum = self.get_digitizer_noise(isLoad=False)
+        '''
         nperseg = int(input('Enter nperseg: '))
         noverlap = int(input('Enter noverlap : '))
         nfft = int(input('Enter nfft : '))
-        cof_vmax = float(input('Enter cof_vmax: '))
         if nperseg == 0:
-            nperseg = 2**12
+            nperseg = 2**10
         if noverlap == 0:
             noverlap = nperseg // 8
         if nfft == 0:
             nfft = nperseg
+        '''
+        nperseg = 2**10
+        noverlap = nperseg // 8
+        nfft = nperseg
+
         start = time.time()
         if isIndexing:
             print('start idx')
@@ -185,8 +188,6 @@ class CTS_Analysis:
         f += freq_LO
         f /= 1e9
         print('end spectgram')
-        #vmax = 0.05*np.max(Zxx)
-        vmax = cof_vmax*np.max(Zxx)
         if isIndexing:
             print('start idx')
             self.idx_time_st = getNearestIndex(t, val_time_st - time_offset)
@@ -202,6 +203,9 @@ class CTS_Analysis:
 
         print('start plot')
         if isPlot:
+            coef_vmax = float(input('Enter coef_vmax: '))
+            # vmax = 0.05*np.max(Zxx)
+            vmax = coef_vmax * np.max(Zxx)
             fig = plt.figure(figsize=(6,8),dpi=150)
             ncols = 4
             nrows = 4
@@ -248,6 +252,7 @@ class CTS_Analysis:
 
             #plt.savefig('plot.png')
             print('end plot')
+        '''
         fig = plt.figure(figsize=(6,5), dpi=150)
         title = ('#%d') % (shotNo)
         plt.title(title, loc='right')
@@ -288,6 +293,7 @@ class CTS_Analysis:
         plt.show()
         filename = "CTSfosc1_spectrum_pon_poff_SIGperBGmNOISE_" + str(shotNo)
         np.savez_compressed(filename, f, t, t_probe_on, t_probe_off, spectrum_probe_on, spectrum_probe_off, (spectrum_probe_on-spectrum_probe_off)/(spectrum_probe_off-noise_spectrum))
+        '''
         t_end = time.time() - start
         print("erapsed time for STFT = %.3f sec" % t_end)
 
@@ -454,6 +460,7 @@ class CTS_Analysis:
         print("'Load'(l): Load data")
         print("'SetTime'(st): Set 2 pair of time windows to show spectrum")
         print("'SetShowTime'(sst): Set time window to plot figure")
+        print("'plot'(p): Plot raw data")
         print("'stft': Calc STFT")
         print("'pstft': Plot STFT figure")
         print("'fft': Plot STFT figure")
@@ -524,7 +531,7 @@ class CTS_Analysis:
                         isLog = True
                     self.interactive_fft(int(shotNo), f, t, Zxx, int(num_plot), float(y_range), isLog)
 
-                if val == 'plot':
+                if val == 'plot' or str.upper(val) == 'P':
                     plt.clf()
                     plt.title('#%s' % shotNo, loc='right')
                     plt.plot(timedata[::2000], voltdata[::2000])
@@ -538,6 +545,7 @@ class CTS_Analysis:
                     except:
                         print("Enter all val_time")
                     plt.xlabel("Time [sec]")
+                    plt.xlim(timedata[0], timedata[-1])
                     plt.show()
 
                 if val == 'help':
@@ -547,6 +555,7 @@ class CTS_Analysis:
                     print("'Load'(l): Load data")
                     print("'SetTime'(st): Set 2 pair of time windows to show spectrum")
                     print("'SetShowTime'(sst): Set time window to plot figure")
+                    print("'plot'(p): Plot raw data")
                     print("'stft': Calc STFT")
                     print("'pstft': Plot STFT figure")
                     print("'fft': Plot STFT figure")
