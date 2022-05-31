@@ -1253,17 +1253,19 @@ class ITB_Analysis:
 
 
         #popt, pcov = curve_fit(laplace_asymmetric_pdf, buf_t_highK, cond_av_highK, p0=(1, 0, cond_av_highK[200]))
-        print('highK(%.6f-%.6fs): y0=%.6f, kappa=%.6f, loc=%.6f, scale=%.6f, b=%.6f\n' % (buf_t_highK[0],buf_t_highK[-1], popt_1[0], popt_1[1], 1e-7*popt_1[2], popt_1[3], popt_1[4]))
-        print('highK(%.6f-%.6fs): y0=%.6f, kappa=%.6f, loc=%.6f, scale=%.6f, b=%.6f\n' % (buf_t_highK[0],buf_t_highK[400], popt_2[0], popt_2[1], 1e-7*popt_2[2], popt_2[3], popt_2[4]))
-        print('highK(%.6f-%.6fs): y0=%.6f, kappa=%.6f, loc=%.6f, scale=%.6f, b=%.6f\n' % (buf_t_highK[100],buf_t_highK[300], popt_3[0], popt_3[1], 1e-7*popt_3[2], popt_3[3], popt_3[4]))
-        print('highK(%.6f-%.6fs): y0=%.6f, kappa=%.6f, loc=%.6f, scale=%.6f, b=%.6f\n' % (buf_t_highK[150],buf_t_highK[250], popt_4[0], popt_4[1], 1e-7*popt_4[2], popt_4[3], popt_4[4]))
-        print('highK(%.6f-%.6fs): y0=%.6f, kappa=%.6f, loc=%.6f, scale=%.6f, b=%.6f\n' % (buf_t_highK[170],buf_t_highK[230], popt_5[0], popt_5[1], 1e-7*popt_5[2], popt_5[3], popt_5[4]))
+        print(f'highK({buf_t_highK[0]:.2e}-{buf_t_highK[-1]:.2e}s): y0={popt_1[0]:.6e}, kappa={popt_1[1]:.6e}, loc={1e-7*popt_1[2]:.6e}s, scale={popt_1[3]:.6e}, b={1e-7*popt_1[4]:.6e}')
+        print(f'highK({buf_t_highK[0]:.2e}-{buf_t_highK[400]:.2e}s): y0={popt_2[0]:.6e}, kappa={popt_2[1]:.6e}, loc={1e-7*popt_2[2]:.6e}s, scale={popt_2[3]:.6e}, b={1e-7*popt_2[4]:.6e}')
+        print(f'highK({buf_t_highK[100]:.2e}-{buf_t_highK[300]:.2e}s): y0={popt_3[0]:.6e}, kappa={popt_3[1]:.6e}, loc={1e-7*popt_3[2]:.6e}s, scale={popt_3[3]:.6e}, b={1e-7*popt_3[4]:.6e}')
+        print(f'highK({buf_t_highK[150]:.2e}-{buf_t_highK[250]:.2e}s): y0={popt_4[0]:.6e}, kappa={popt_4[1]:.6e}, loc={1e-7*popt_4[2]:.6e}s, scale={popt_4[3]:.6e}, b={1e-7*popt_4[4]:.6e}')
+        print(f'highK({buf_t_highK[170]:.2e}-{buf_t_highK[230]:.2e}s): y0={popt_5[0]:.6e}, kappa={popt_5[1]:.6e}, loc={1e-7*popt_5[2]:.6e}s, scale={popt_5[3]:.6e}, b={1e-7*popt_5[4]:.6e}')
 
-        print('MP(%.6f-%.6fs): y0=%.6f, kappa=%.6f, loc=%.6f, scale=%.6f, b=%.6f\n' % (buf_t_mp[0],buf_t_mp[-1], popt_mp_1[0], popt_mp_1[1], 1e-3*popt_mp_1[2], popt_mp_1[3], popt_mp_1[4]))
-        print('MP(%.6f-%.6fs): y0=%.6f, kappa=%.6f, loc=%.6f, scale=%.6f, b=%.6f\n' % (buf_t_mp[0],buf_t_mp[400], popt_mp_2[0], popt_mp_2[1], 1e-3*popt_mp_2[2], popt_mp_2[3], popt_mp_2[4]))
-        print('MP(%.6f-%.6fs): y0=%.6f, kappa=%.6f, loc=%.6f, scale=%.6f, b=%.6f\n' % (buf_t_mp[100],buf_t_mp[300], popt_mp_3[0], popt_mp_3[1], 1e-3*popt_mp_3[2], popt_mp_3[3], popt_mp_3[4]))
-        print('MP(%.6f-%.6fs): y0=%.6f, kappa=%.6f, loc=%.6f, scale=%.6f, b=%.6f\n' % (buf_t_mp[150],buf_t_mp[250], popt_mp_4[0], popt_mp_4[1], 1e-3*popt_mp_4[2], popt_mp_4[3], popt_mp_4[4]))
-        print('MP(%.6f-%.6fs): y0=%.6f, kappa=%.6f, loc=%.6f, scale=%.6f, b=%.6f\n' % (buf_t_mp[170],buf_t_mp[230], popt_mp_5[0], popt_mp_5[1], 1e-3*popt_mp_5[2], popt_mp_5[3], popt_mp_5[4]))
+
+        print(f'MP({buf_t_mp[0]:.2e}-{buf_t_mp[-1]:.2e}s): y0={popt_mp_1[0]:.6e}, kappa={popt_mp_1[1]:.6e}, loc={1e-3*popt_mp_1[2]:.6e}s, scale={popt_mp_1[3]:.6e}, b={1e-3*popt_mp_1[4]:.6e}')
+        print(f'MP({buf_t_mp[0]:.2e}-{buf_t_mp[400]:.2e}s): y0={popt_mp_2[0]:.6e}, kappa={popt_mp_2[1]:.6e}, loc={1e-3*popt_mp_2[2]:.6e}s, scale={popt_mp_2[3]:.6e}, b={1e-3*popt_mp_2[4]:.6e}')
+        print(f'MP({buf_t_mp[100]:.2e}-{buf_t_mp[300]:.2e}s): y0={popt_mp_3[0]:.6e}, kappa={popt_mp_3[1]:.6e}, loc={1e-3*popt_mp_3[2]:.6e}s, scale={popt_mp_3[3]:.6e}, b={1e-3*popt_mp_3[4]:.6e}')
+        print(f'MP({buf_t_mp[150]:.2e}-{buf_t_mp[250]:.2e}s): y0={popt_mp_4[0]:.6e}, kappa={popt_mp_4[1]:.6e}, loc={1e-3*popt_mp_4[2]:.6e}s, scale={popt_mp_4[3]:.6e}, b={1e-3*popt_mp_4[4]:.6e}')
+        print(f'MP({buf_t_mp[170]:.2e}-{buf_t_mp[230]:.2e}s): y0={popt_mp_5[0]:.6e}, kappa={popt_mp_5[1]:.6e}, loc={1e-3*popt_mp_5[2]:.6e}s, scale={popt_mp_5[3]:.6e}, b={1e-3*popt_mp_5[4]:.6e}')
+
         #print(pcov)
         #fig = plt.figure(figsize=(12,6), dpi=150)
         #plt.plot(buf_t_highK, 1e4*laplace_asymmetric_pdf(1e6*buf_t_highK, popt[0], popt[1], popt[2], popt[3], popt[4]))
@@ -2821,7 +2823,7 @@ if __name__ == "__main__":
     #ana_findpeaks_shotarray()
     #ana_delaytime_shotarray()
     #itba = ITB_Analysis(int(ShotNo))
-    itba = ITB_Analysis(176289, 169717)#167088), 163958
+    itba = ITB_Analysis(176293, 169717)#167088), 163958
     #itba.ana_plot_highSP_TS(1)
     #itba.get_ne(target_t=4.4, target_r=0.2131075)
     #itba.ana_plot_ece()
