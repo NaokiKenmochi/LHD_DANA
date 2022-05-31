@@ -2823,7 +2823,7 @@ if __name__ == "__main__":
     #ana_findpeaks_shotarray()
     #ana_delaytime_shotarray()
     #itba = ITB_Analysis(int(ShotNo))
-    itba = ITB_Analysis(176293, 169717)#167088), 163958
+    itba = ITB_Analysis(176294, 169717)#167088), 163958
     #itba.ana_plot_highSP_TS(1)
     #itba.get_ne(target_t=4.4, target_r=0.2131075)
     #itba.ana_plot_ece()
