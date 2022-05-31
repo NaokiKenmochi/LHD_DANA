@@ -15,6 +15,7 @@ import matplotlib
 import matplotlib.pyplot as plt
 import time
 import statistics
+import pandas as pd
 from matplotlib.colors import LogNorm
 #from matplotlib.animation import ArtistAnimation
 from PIL import Image, ImageDraw
@@ -639,7 +640,10 @@ class ITB_Analysis:
         fig = plt.figure(figsize=(8,5), dpi=150)
         arr_ydata = []
         arr_timedata_peaks_ltd = []
+        arr_timedata_peaks_ltd_2 = []
         arr_tau_A_ltd = []
+        arr_b_ltd = []
+        arr_err_b_ltd = []
         arr_err_timedata_peaks_ltd = []
         if isCondAV:
             print("timedata and voltdata_array are loaded.")
@@ -648,18 +652,23 @@ class ITB_Analysis:
             try:
                 print(self.ShotNo, i_ch)
                 if isCondAV:
-                    _,array_tau_A_ltd,_,timedata_peaks_ltd,err_timedata_peaks_ltd = self.findpeaks_radh(t_st, t_ed, i_ch, timedata=timedata+1, voltdata_array=voltdata_array, isCondAV=True)
+                    _,array_tau_A_ltd,array_b_ltd,timedata_peaks_ltd,err_timedata_peaks_ltd,array_err_b_ltd,timedata_peaks_ltd_2 = self.findpeaks_radh(t_st, t_ed, i_ch, timedata=timedata+1, voltdata_array=voltdata_array, isCondAV=True)
                     timedata_peaks_ltd -= 1
                 else:
-                    _,array_tau_A_ltd,_,timedata_peaks_ltd,err_timedata_peaks_ltd = self.findpeaks_radh(t_st, t_ed, i_ch)
+                    _,array_tau_A_ltd,_,timedata_peaks_ltd,err_timedata_peaks_ltd,_,_ = self.findpeaks_radh(t_st, t_ed, i_ch)
                 ydata = r[i_ch]*np.ones(len(timedata_peaks_ltd))
                 #plt.plot(timedata_peaks_ltd, ydata, 's')
                 #plt.plot(ydata, timedata_peaks_ltd, 'rs')
-                plt.plot(ydata, array_tau_A_ltd, 'rs')
+                #plt.plot(ydata, array_tau_A_ltd, 'rs')
+                #plt.plot(ydata, array_b_ltd, 'rs')
+                plt.plot(ydata, timedata_peaks_ltd_2-timedata_peaks_ltd, 'rs')
                 arr_ydata.extend(ydata)
                 arr_timedata_peaks_ltd.extend(timedata_peaks_ltd)
+                arr_timedata_peaks_ltd_2.extend(timedata_peaks_ltd_2)
                 arr_err_timedata_peaks_ltd.extend(err_timedata_peaks_ltd)
                 arr_tau_A_ltd.extend(array_tau_A_ltd)
+                arr_b_ltd.extend(array_b_ltd)
+                arr_err_b_ltd.extend(array_err_b_ltd)
             except Exception as e:
                 print(e)
 
@@ -673,6 +682,7 @@ class ITB_Analysis:
         #plt.ylabel('R [m]')
         plt.grid(b=True, which='major', color='#666666', linestyle='-')
         plt.grid(b=True, which='minor', color='#999999', linestyle='-', alpha=0.2)
+        plt.show()
         #filename = 'peaktime_%s_raw_tau_A_%d' % (data_name_pxi, self.ShotNo)
         filename = 'risetime_%s_raw_tau_A_%d_condAV' % (data_name_pxi, self.ShotNo)
         #plt.savefig(filename)
@@ -680,7 +690,13 @@ class ITB_Analysis:
         #np.savetxt(filename, np.r_[arr_ydata, arr_timedata_peaks_ltd, arr_err_timedata_peaks_ltd])
         #filename = 'time_tau_errtau_radh_condAV_SN' + str(self.ShotNo) + '.txt'
         #np.savetxt(filename, np.r_[arr_ydata, arr_tau_A_ltd, arr_err_timedata_peaks_ltd])
-        plt.show()
+        filename_2 = 'r_b_berr_radh_condAV_SN' + str(self.ShotNo) + '.txt'
+        np.savetxt(filename_2, np.r_[arr_ydata, arr_b_ltd, arr_err_b_ltd])
+        filename_3 = 'r_tpeak_radh_condAV_SN' + str(self.ShotNo) + '.txt'
+        np.savetxt(filename_3, np.r_[arr_ydata, arr_timedata_peaks_ltd_2])
+        filename_4 = 'r_dtpeak_x0err_radh_condAV_SN' + str(self.ShotNo) + '.txt'
+        dtpeak = np.array(arr_timedata_peaks_ltd_2)-np.array(arr_timedata_peaks_ltd)
+        np.savetxt(filename_4, np.r_[arr_ydata, dtpeak, arr_err_timedata_peaks_ltd])
 
 
     def find_peaks_radh_allch(self, t_st, t_ed):
@@ -689,7 +705,6 @@ class ITB_Analysis:
                 self.findpeaks_radh(t_st, t_ed, i_ch)
             except Exception as e:
                 print(e)
-
 
     def findpeaks_radh(self, t_st, t_ed, i_ch, timedata=None, voltdata_array=None, isCondAV=None):
         if isCondAV:
@@ -734,6 +749,8 @@ class ITB_Analysis:
         array_b = []
         array_x0 = []
         array_err_x0 = []
+        array_err_b = []
+        array_timedata_peaks_ltd = []
 
         for i_peak in range(len(peaks)):
             width = 5000
@@ -787,17 +804,21 @@ class ITB_Analysis:
                 array_b.append(popt_2[1])
                 array_x0.append(popt_2[2])
                 perr = np.sqrt(np.diag(pcov_2))
+                array_err_b.append(perr[1])
                 array_err_x0.append(perr[2])
                 array_tau_ltd.append(array_tau[i])
                 array_err_tau_ltd.append(array_err_tau[i])
+                array_timedata_peaks_ltd.append(timedata_peaks_ltd[i])
             except Exception as e:
                 print(e)
         idx_array_2 = np.where(np.array(array_b) < 0)
         array_b_ltd = np.delete(array_b, idx_array_2)
         array_x0_ltd = np.delete(array_x0, idx_array_2)
+        array_err_b_ltd = np.delete(array_err_b, idx_array_2)
         array_err_x0_ltd = np.delete(array_err_x0, idx_array_2)
         array_tau_ltd = np.delete(array_tau_ltd, idx_array_2)
         array_err_tau_ltd = np.delete(array_err_tau_ltd, idx_array_2)
+        timedata_peaks_ltd_2 = np.delete(array_timedata_peaks_ltd, idx_array_2)
 
         #if isCondAV:
         #    timedata_ltd -= 1
@@ -870,7 +891,62 @@ class ITB_Analysis:
         #np.savetxt('radh_array' + filename, voltdata_array)
         #np.savetxt('radh_timedata' + filename, timedata[idx_time_st:idx_time_ed])
 
-        return array_A_ltd, array_tau_ltd, array_b_ltd, array_x0_ltd, array_err_tau_ltd#array_err_x0_ltd#timedata_peaks_ltd
+        return array_A_ltd, array_tau_ltd, array_b_ltd, array_x0_ltd, array_err_tau_ltd, array_err_b_ltd, timedata_peaks_ltd_2#array_err_x0_ltd#timedata_peaks_ltd
+
+    def findpeaks_mp(self, t_st, t_ed, i_ch, timedata=None, voltdata_array=None, isCondAV=None, isPlot=True):
+        if isCondAV:
+            print("timedata and voltdata_array are loaded.")
+            timedata_ltd = timedata
+
+        else:
+            data_mp = AnaData.retrieve('mp_raw_p', self.ShotNo, 1)
+            data_mp_2d = data_mp.getValData(0)
+            timedata = data_mp.getDimData('TIME')
+
+            data_name_info = 'radhinfo' #radlinfo
+
+            # 次元 'R' のデータを取得 (要素数137 の一次元配列(numpy.Array)が返ってくる)
+            idx_time_st = find_closest(timedata, t_st)
+            idx_time_ed = find_closest(timedata, t_ed)
+            timedata_ltd = timedata[idx_time_st:idx_time_ed]
+        #peaks, _ = find_peaks(data_mp_2d[idx_time_st:idx_time_ed, i_ch], prominence=0.001, width=40)
+        data_mp = data_mp_2d[idx_time_st:idx_time_ed, i_ch]
+        data_mp_env = np.abs(signal.hilbert(data_mp))
+        #peaks, _ = find_peaks(data_mp_env, prominence=3.5)  #175132
+        #peaks, _ = find_peaks(data_mp_env, prominence=1, distance=1000) #169702
+        #peaks, _ = find_peaks(data_mp_env, prominence=1, distance=100) #175346
+        peaks, _ = find_peaks(data_mp_env, prominence=1, distance=500) #20211214-20211216, 20220113
+
+        timedata_peaks = timedata_ltd[peaks]
+        if isPlot:
+            f, axarr = plt.subplots(1, 1, gridspec_kw={'wspace': 0, 'hspace': 0}, figsize=(8,4), dpi=150, sharex=True)
+
+            axarr.set_xlim(t_st, t_ed)
+            axarr.plot(timedata_ltd, data_mp)
+            axarr.plot(timedata_ltd, data_mp_env)
+            axarr.plot(timedata_ltd[peaks], data_mp_env[peaks], "or")
+            title = '%s(ch.%d), #%d' % ('mp_raw_p', i_ch, self.ShotNo)
+            axarr.set_title(title, fontsize=18, loc='right')
+
+
+            axarr.set_xlim(np.min(timedata_ltd), np.max(timedata_ltd))
+            axarr.tick_params(which='both', axis='both', right=True, top=True, left=True, bottom=True, labelsize=12)
+            axarr.set_xlabel('Time [sec]', fontsize=15)
+            #filename = '%s_ch%d_raw_tau_A_%d' % (data_name_pxi, i_ch, self.ShotNo)
+            #plt.savefig(filename)
+            plt.show()
+
+        '''
+        plt.plot(xdata, ydata, 'b-')
+        plt.plot(xdata, func_exp_XOffset(xdata, *popt), 'r-', label=label)
+        plt.legend()
+        plt.show()
+        '''
+        #filename = '_t%.2fto%.2f_%d.txt' % (t_st, t_ed, self.ShotNo)
+        #np.savetxt('radh_array' + filename, voltdata_array)
+        #np.savetxt('radh_timedata' + filename, timedata[idx_time_st:idx_time_ed])
+
+        return timedata_peaks
 
     def ana_plot_pci_test(self):
         data = AnaData.retrieve('ece_fast', self.ShotNo, 1)
@@ -912,7 +988,7 @@ class ITB_Analysis:
         sdens_rkt = data_pci_sdens_rkt.getValData(0)
         #i_time=1380
         images = []
-        for i_time in range(1340, 1600):
+        for i_time in range(1300, 1701):
             fig, axarr = plt.subplots(5, 1, gridspec_kw={'wspace': 0, 'hspace': 0.25, 'height_ratios': [4,4,1,1,1]}, figsize=(8, 11), dpi=150,
                                       sharex=False)
             # pp.set_clim(1e1, 1e3)
@@ -936,8 +1012,8 @@ class ITB_Analysis:
             axarr[3].set_ylabel('reff/a99', fontsize=10)
             axarr[4].set_ylabel('Te [keV]', fontsize=10)
             axarr[4].set_xlabel('Time [sec]', fontsize=10)
-            axarr[3].set_xlim(4.44, 4.70)
-            axarr[2].set_xlim(4.44, 4.70)
+            axarr[3].set_xlim(4.4, 4.80)
+            axarr[2].set_xlim(4.4, 4.80)
             axarr[2].tick_params(which='both', axis='both', right=True, top=True, left=True, bottom=True, labelsize=8)
             axarr[3].tick_params(which='both', axis='both', right=True, top=True, left=True, bottom=True, labelsize=8)
             im0 = axarr[2].pcolormesh(t, reff_a99, ntilde_pci.T, cmap='jet',
@@ -952,7 +1028,8 @@ class ITB_Analysis:
             arr_erace = [5, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 24, 25, 26, 27, 28, 32, 33, 44,
                          45, 46, 47, 50, 51, 58]
             axarr[4].plot(t_ece, Te[:, arr_erace])
-            axarr[4].set_xlim(4.44, 4.749)
+            axarr[4].set_ylim(0, 5)
+            axarr[4].set_xlim(4.4, 4.878)
             axarr[4].tick_params(which='both', axis='both', right=True, top=True, left=True, bottom=True, labelsize=8)
             axarr[2].axvline(t_pci_sdens_rkt[i_time], color='red')
             axarr[3].axvline(t_pci_sdens_rkt[i_time], color='red')
@@ -1053,6 +1130,183 @@ class ITB_Analysis:
         plt.show()
         '''
 
+    def conditional_average_highK_mppk(self, t_st=None, t_ed=None, arr_peak_selection=None, arr_toff=None):
+        data_name_highK = 'mwrm_highK_Power3' #RADLPXI data_radhinfo = AnaData.retrieve(data_name_info, self.ShotNo, 1)
+        data = AnaData.retrieve(data_name_highK, self.ShotNo, 1)
+        vnum = data.getValNo()
+        t = data.getDimData('Time')
+
+        data_highK = data.getValData('Amplitude (20-200kHz)')
+        reff_a99_highK = data.getValData('reff/a99')
+
+        data_name_info = 'radhinfo' #radlinfo
+        data_name_pxi = 'RADHPXI' #RADLPXI
+        data_radhinfo = AnaData.retrieve(data_name_info, self.ShotNo, 1)
+        r = data_radhinfo.getValData('rho')
+
+        i_ch = 12#14#13#9
+        i_ch_mp = 0
+        timedata = TimeData.retrieve(data_name_pxi, self.ShotNo, 1, 1).get_val()
+        voltdata_array = np.zeros((len(timedata), 32))
+        for i in range(32):
+            voltdata_array[:, i] = VoltData.retrieve(data_name_pxi, self.ShotNo, 1, i+1).get_val()
+
+        data_mp = AnaData.retrieve('mp_raw_p', self.ShotNo, 1)
+
+        data_mp_2d = data_mp.getValData(0)
+        t_mp = data_mp.getDimData('TIME')
+
+        timedata_peaks_ltd = self.findpeaks_mp(t_st, t_ed, i_ch_mp, isPlot=False)
+
+        arr_reff_a99_highK = []
+
+        t_st_condAV = 2e-3
+        t_ed_condAV = 10e-3#4e-3#6e-3#10e-3#
+        for i in range(len(timedata_peaks_ltd)):
+            if i == 0:
+                '''
+                buf_radh = voltdata_array[find_closest(timedata, timedata_peaks_ltd[i]-2e-3):find_closest(timedata, timedata_peaks_ltd[i]+4e-3), :]
+                buf_highK = data_highK[find_closest(t, timedata_peaks_ltd[i]-2e-3):find_closest(t, timedata_peaks_ltd[i]+4e-3)]
+                buf_mp = data_mp_2d[find_closest(t_mp, timedata_peaks_ltd[i]-2e-3):find_closest(t_mp, timedata_peaks_ltd[i]+4e-3), 0]
+                buf_t_radh = timedata[find_closest(timedata, timedata_peaks_ltd[i]-2e-3):find_closest(timedata, timedata_peaks_ltd[i]+4e-3)] - timedata_peaks_ltd[i]
+                buf_t_highK = t[find_closest(t, timedata_peaks_ltd[i]-2e-3):find_closest(t, timedata_peaks_ltd[i]+4e-3)] - timedata_peaks_ltd[i]
+                buf_t_mp = t_mp[find_closest(t_mp, timedata_peaks_ltd[i]-2e-3):find_closest(t_mp, timedata_peaks_ltd[i]+4e-3)] - timedata_peaks_ltd[i]
+                '''
+                buf_radh = voltdata_array[find_closest(timedata, timedata_peaks_ltd[i]-t_st_condAV):find_closest(timedata, timedata_peaks_ltd[i]+t_ed_condAV), :]
+                buf_highK = data_highK[find_closest(t, timedata_peaks_ltd[i]-t_st_condAV):find_closest(t, timedata_peaks_ltd[i]+t_ed_condAV)]
+                buf_mp = data_mp_2d[find_closest(t_mp, timedata_peaks_ltd[i]-t_st_condAV):find_closest(t_mp, timedata_peaks_ltd[i]+t_ed_condAV), 0]
+                buf_mp_env = np.abs(signal.hilbert(buf_mp))
+                buf_t_radh = timedata[find_closest(timedata, timedata_peaks_ltd[i]-t_st_condAV):find_closest(timedata, timedata_peaks_ltd[i]+t_ed_condAV)] - timedata_peaks_ltd[i]
+                buf_t_highK = t[find_closest(t, timedata_peaks_ltd[i]-t_st_condAV):find_closest(t, timedata_peaks_ltd[i]+t_ed_condAV)] - timedata_peaks_ltd[i]
+                buf_t_mp = t_mp[find_closest(t_mp, timedata_peaks_ltd[i]-t_st_condAV):find_closest(t_mp, timedata_peaks_ltd[i]+t_ed_condAV)] - timedata_peaks_ltd[i]
+                arr_reff_a99_highK.append(reff_a99_highK[find_closest(t, timedata_peaks_ltd[i])])
+
+            else:
+                try:
+                    buf_radh += voltdata_array[find_closest(timedata, timedata_peaks_ltd[i]-t_st_condAV):find_closest(timedata, timedata_peaks_ltd[i]+t_ed_condAV), :]
+                    buf_highK += data_highK[find_closest(t, timedata_peaks_ltd[i]-t_st_condAV):find_closest(t, timedata_peaks_ltd[i]+t_ed_condAV)]
+                    #buf_highK_ = data_highK[find_closest(t, timedata_peaks_ltd[i]-t_st_condAV):find_closest(t, timedata_peaks_ltd[i]+t_ed_condAV)]
+                    #buf_highK_ -= np.average(buf_highK_[:100], axis=0)
+                    #buf_highK += buf_highK_
+                    buf_mp += data_mp_2d[find_closest(t_mp, timedata_peaks_ltd[i]-t_st_condAV):find_closest(t_mp, timedata_peaks_ltd[i]+t_ed_condAV), 0]
+                    buf_mp_env += np.abs(signal.hilbert(data_mp_2d[find_closest(t_mp, timedata_peaks_ltd[i]-t_st_condAV):find_closest(t_mp, timedata_peaks_ltd[i]+t_ed_condAV), 0]))
+                    buf_t_radh = timedata[find_closest(timedata, timedata_peaks_ltd[i]-t_st_condAV):find_closest(timedata, timedata_peaks_ltd[i]+t_ed_condAV)] - timedata_peaks_ltd[i]
+                    buf_t_highK = t[find_closest(t, timedata_peaks_ltd[i]-t_st_condAV):find_closest(t, timedata_peaks_ltd[i]+t_ed_condAV)] - timedata_peaks_ltd[i]
+                    buf_t_mp = t_mp[find_closest(t_mp, timedata_peaks_ltd[i]-t_st_condAV):find_closest(t_mp, timedata_peaks_ltd[i]+t_ed_condAV)] - timedata_peaks_ltd[i]
+                    arr_reff_a99_highK.append(reff_a99_highK[find_closest(t, timedata_peaks_ltd[i])])
+                except Exception as e:
+                    print(e)
+
+            '''
+            fig = plt.figure()
+            ax1 = fig.add_subplot(111)
+            ax2 = ax1.twinx()
+            ax1.set_axisbelow(True)
+            ax2.set_axisbelow(True)
+            plt.rcParams['axes.axisbelow'] = True
+            b = ax2.plot(buf_t_mp, buf_mp, 'g-', label='mp_raw', zorder=1)
+            label_radh = "ECE(rho=" + str(r[i_ch]) + ")"
+            c = ax1.plot( buf_t_radh, buf_radh[:, i_ch], 'r-', label=label_radh, zorder=2)
+            a = ax2.plot(buf_t_highK, 1e3*buf_highK, 'b-', label='highK', zorder=3)
+            plt.title('#%d' % self.ShotNo, loc='right')
+            ax1.grid(axis='x', b=True, which='major', color='#666666', linestyle='-')
+            ax1.grid(axis='x', b=True, which='minor', color='#999999', linestyle='-', alpha=0.2)
+            #ax1.legend((a, b, *c), ('highK', 'mp_raw', 'radh'), loc='upper left')
+            ax2.set_xlabel('Time [sec]')
+            ax2.set_ylabel('b_dot_tilda [T/s]', rotation=270)
+            ax1.set_ylabel('Intensity of ECE [a.u.]', labelpad=15)
+            fig.legend(loc=1, bbox_to_anchor=(1, 1), bbox_transform=ax1.transAxes)
+            plt.show()
+            '''
+
+        mean_reff_a99_highK = statistics.mean(arr_reff_a99_highK)
+        stdev_reff_a99_highK = statistics.stdev(arr_reff_a99_highK)
+
+        cond_av_radh = buf_radh/len(timedata_peaks_ltd)
+        cond_av_highK = buf_highK/len(timedata_peaks_ltd)
+        cond_av_mp = buf_mp/len(timedata_peaks_ltd)
+        cond_av_mp_env = buf_mp_env/len(timedata_peaks_ltd)
+
+
+        val_prominence_highK = 0.001
+        num_peaks = 0
+        #peaks, _ = find_peaks(cond_av_highK, prominence=0.00003)#, distance=50) #20211214-20211216, 20220113
+        #peaks, _ = find_peaks(cond_av_highK, prominence=val_prominence_highK)#, distance=50) #20211214-20211216, 20220113
+        while(num_peaks < 1 and val_prominence_highK > 0):
+            peaks, _ = find_peaks(cond_av_highK, prominence=val_prominence_highK)
+            print('prominence=%.5f' % val_prominence_highK )
+            print('num_peaks=%d' % len(peaks))
+            val_prominence_highK -= 0.000005
+            num_peaks = len(peaks)
+
+        popt_1, pcov = curve_fit(laplace_asymmetric_pdf, 1e7*buf_t_highK, cond_av_highK, p0=(cond_av_highK[0], 1, 0, cond_av_highK[find_closest(buf_t_highK, 0)], 1e-1))
+        popt_2, pcov = curve_fit(laplace_asymmetric_pdf, 1e7*buf_t_highK[:400] , cond_av_highK[:400], p0=(cond_av_highK[0], 1, 0, cond_av_highK[find_closest(buf_t_highK, 0)], 1e-1))
+        popt_3, pcov = curve_fit(laplace_asymmetric_pdf, 1e7*buf_t_highK[100:300] , cond_av_highK[100:300], p0=(cond_av_highK[0], 1, 0, cond_av_highK[find_closest(buf_t_highK, 0)], 1e-1))
+        popt_4, pcov = curve_fit(laplace_asymmetric_pdf, 1e7*buf_t_highK[130:270] , cond_av_highK[130:270], p0=(cond_av_highK[0], 1, 0, cond_av_highK[find_closest(buf_t_highK, 0)], 1e-1))
+        popt_5, pcov = curve_fit(laplace_asymmetric_pdf, 1e7*buf_t_highK[150:250] , cond_av_highK[150:250], p0=(cond_av_highK[0], 1, 0, cond_av_highK[find_closest(buf_t_highK, 0)], 1e-1))
+
+        popt_mp_1, pcov_mp = curve_fit(laplace_asymmetric_pdf, 1e3*buf_t_mp, cond_av_mp_env, p0=(cond_av_mp_env[0], 1, 0, cond_av_mp_env[find_closest(buf_t_mp, 0)], 1e0))
+        popt_mp_2, pcov_mp = curve_fit(laplace_asymmetric_pdf, 1e3*buf_t_mp[:400], cond_av_mp_env[:400], p0=(cond_av_mp_env[0], 1, 0, cond_av_mp_env[find_closest(buf_t_mp, 0)], 1e0))
+        popt_mp_3, pcov_mp = curve_fit(laplace_asymmetric_pdf, 1e3*buf_t_mp[100:300], cond_av_mp_env[100:300], p0=(cond_av_mp_env[0], 1, 0, cond_av_mp_env[find_closest(buf_t_mp, 0)], 1e0))
+        popt_mp_4, pcov_mp = curve_fit(laplace_asymmetric_pdf, 1e3*buf_t_mp[150:250], cond_av_mp_env[150:250], p0=(cond_av_mp_env[0], 1, 0, cond_av_mp_env[find_closest(buf_t_mp, 0)], 1e0))
+        popt_mp_5, pcov_mp = curve_fit(laplace_asymmetric_pdf, 1e3*buf_t_mp[170:230], cond_av_mp_env[170:230], p0=(cond_av_mp_env[0], 1, 0, cond_av_mp_env[find_closest(buf_t_mp, 0)], 1e0))
+        print(find_closest(buf_t_mp, 0))
+
+
+        #popt, pcov = curve_fit(laplace_asymmetric_pdf, buf_t_highK, cond_av_highK, p0=(1, 0, cond_av_highK[200]))
+        print(popt_1)
+        print(popt_2)
+        print(popt_3)
+        print(popt_4)
+        print(popt_5)
+        print(popt_mp_1)
+        print(popt_mp_2)
+        print(popt_mp_3)
+        print(popt_mp_4)
+        print(popt_mp_5)
+        #print(pcov)
+        #fig = plt.figure(figsize=(12,6), dpi=150)
+        #plt.plot(buf_t_highK, 1e4*laplace_asymmetric_pdf(1e6*buf_t_highK, popt[0], popt[1], popt[2], popt[3], popt[4]))
+        #plt.plot(buf_t_highK, 1e4*laplace_asymmetric_pdf(buf_t_highK, popt[0], 1, popt[2], popt[3]))
+        #plt.plot(buf_t_highK, 1e4*cond_av_highK)
+        #plt.show()
+
+        fig = plt.figure(figsize=(12,6), dpi=150)
+        ax1 = fig.add_subplot(111)
+        ax2 = ax1.twinx()
+        ax1.set_axisbelow(True)
+        ax2.set_axisbelow(True)
+        plt.rcParams['axes.axisbelow'] = True
+        b = ax2.plot(buf_t_mp, cond_av_mp, 'g-', label='mp_raw', zorder=1)
+        b = ax2.plot(buf_t_mp, cond_av_mp_env, 'c-', label='mp_raw_env', zorder=1)
+        b2 = ax2.plot(buf_t_mp, laplace_asymmetric_pdf(1e3*buf_t_mp, popt_mp_1[0], popt_mp_1[1], popt_mp_1[2], popt_mp_1[3], popt_mp_1[4]), label='mp-1')
+        b2 = ax2.plot(buf_t_mp, laplace_asymmetric_pdf(1e3*buf_t_mp, popt_mp_2[0], popt_mp_2[1], popt_mp_2[2], popt_mp_2[3], popt_mp_2[4]), label='mp-2')
+        b2 = ax2.plot(buf_t_mp, laplace_asymmetric_pdf(1e3*buf_t_mp, popt_mp_3[0], popt_mp_3[1], popt_mp_3[2], popt_mp_3[3], popt_mp_3[4]), label='mp-3')
+        b2 = ax2.plot(buf_t_mp, laplace_asymmetric_pdf(1e3*buf_t_mp, popt_mp_4[0], popt_mp_4[1], popt_mp_4[2], popt_mp_4[3], popt_mp_4[4]), label='mp-4')
+        b2 = ax2.plot(buf_t_mp, laplace_asymmetric_pdf(1e3*buf_t_mp, popt_mp_5[0], popt_mp_5[1], popt_mp_5[2], popt_mp_5[3], popt_mp_5[4]), label='mp-5')
+        label_radh = "ECE(rho=" + str(r[i_ch]) + ")"
+        c = ax1.plot(buf_t_radh, cond_av_radh[:, i_ch], 'r-', label=label_radh, zorder=2)
+        a = ax2.plot(buf_t_highK, 1e4*cond_av_highK, 'b-', label='highK', zorder=3)
+        a2 = ax2.plot(buf_t_highK[peaks], 1e4*cond_av_highK[peaks], "og")
+        a3 = ax2.plot(buf_t_highK, 1e4*laplace_asymmetric_pdf(1e7*buf_t_highK, popt_1[0], popt_1[1], popt_1[2], popt_1[3], popt_1[4]), label='1')
+        a3 = ax2.plot(buf_t_highK, 1e4*laplace_asymmetric_pdf(1e7*buf_t_highK, popt_2[0], popt_2[1], popt_2[2], popt_2[3], popt_2[4]), label='2')
+        a3 = ax2.plot(buf_t_highK, 1e4*laplace_asymmetric_pdf(1e7*buf_t_highK, popt_3[0], popt_3[1], popt_3[2], popt_3[3], popt_3[4]), label='3')
+        a3 = ax2.plot(buf_t_highK, 1e4*laplace_asymmetric_pdf(1e7*buf_t_highK, popt_4[0], popt_4[1], popt_4[2], popt_4[3], popt_4[4]), label='4')
+        a3 = ax2.plot(buf_t_highK, 1e4*laplace_asymmetric_pdf(1e7*buf_t_highK, popt_5[0], popt_5[1], popt_5[2], popt_5[3], popt_5[4]), label='5')
+        if len(peaks) == 0:
+            plt.title('reff/a99(highK)=%.4f+-%.4f, t_peak_highK=%.4fms(prominence=%.6f), %.2fs - %.2fs, conditional av.(%d points) #%d' % (mean_reff_a99_highK, stdev_reff_a99_highK, 1e3*buf_t_highK[peaks], val_prominence_highK, t_st, t_ed, len(timedata_peaks_ltd), self.ShotNo), loc='right')
+        else:
+            plt.title('reff/a99(highK)=%.4f+-%.4f, t_peak_highK=%.4fms(prominence=%.6f), %.2fs - %.2fs, conditional av.(%d points) #%d' % (mean_reff_a99_highK, stdev_reff_a99_highK, 1e3*buf_t_highK[peaks[0]], val_prominence_highK, t_st, t_ed, len(timedata_peaks_ltd), self.ShotNo), loc='right')
+        ax1.grid(axis='x', b=True, which='major', color='#666666', linestyle='-')
+        ax1.grid(axis='x', b=True, which='minor', color='#999999', linestyle='-', alpha=0.2)
+        ax1.set_xlabel('Time [sec]')
+        ax2.set_ylabel('b_dot_tilda [T/s]', rotation=270)
+        ax1.set_ylabel('Intensity of ECE [a.u.]', labelpad=15)
+        fig.legend(loc=1, bbox_to_anchor=(1, 1), bbox_transform=ax1.transAxes)
+        plt.show()
+
+
+        return buf_highK, buf_mp, buf_radh, buf_t_highK, buf_t_mp, buf_t_radh, timedata_peaks_ltd, r, i_ch
 
     def conditional_average_highK(self, t_st=None, t_ed=None, arr_peak_selection=None, arr_toff=None):
         data_name_highK = 'mwrm_highK_Power3' #RADLPXI data_radhinfo = AnaData.retrieve(data_name_info, self.ShotNo, 1)
@@ -1086,7 +1340,7 @@ class ITB_Analysis:
         data_mp_2d = data_mp.getValData(0)
         t_mp = data_mp.getDimData('TIME')
 
-        _, _, _, timedata_peaks_ltd_,_ = self.findpeaks_radh(t_st, t_ed, i_ch)
+        _, _, _, timedata_peaks_ltd_,_,_,_ = self.findpeaks_radh(t_st, t_ed, i_ch)
 
         #timedata_peaks_ltd = timedata_peaks_ltd_
         #arr_peak_selection = [0,2,3,5,6,7]#169714
@@ -1113,7 +1367,7 @@ class ITB_Analysis:
         timedata_peaks_ltd -= arr_toff
         print(len(timedata_peaks_ltd_))
         t_st_condAV = 2e-3
-        t_ed_condAV = 10e-3#6e-3
+        t_ed_condAV = 10e-3#4e-3#6e-3#10e-3#
         for i in range(len(timedata_peaks_ltd)):
             if i == 0:
                 '''
@@ -1195,10 +1449,10 @@ class ITB_Analysis:
         return buf_highK, buf_mp, buf_radh, buf_t_highK, buf_t_mp, buf_t_radh, timedata_peaks_ltd, r, i_ch
 
     def combine_shots_data(self):
-        arr_peak_selection =[0,1,2,3,4,10,11] #169710
-        arr_toff = [-2e-4, 0, -2e-4, -3e-4, -3e-4, -2e-4, -1e-4]    #169710
-        #arr_peak_selection = [0,2,3,5,6,7]#169714
-        #arr_toff = 1e-4*np.array([-1.2,0,-1,-0.5,-1,-1])    #169714
+        #arr_peak_selection =[0,1,2,3,4,10,11] #169710
+        #arr_toff = [-2e-4, 0, -2e-4, -3e-4, -3e-4, -2e-4, -1e-4]    #169710
+        arr_peak_selection = [0,2,3,5,6,7]#169714
+        arr_toff = 1e-4*np.array([-1.2,0,-1,-0.5,-1,-1])    #169714
         #arr_peak_selection =[2,3,4] #169692
         #arr_toff = 1e-4*np.array([-1,-3.5,-4])    #169692
         #arr_peak_selection =[5,7,10] #169698
@@ -1206,10 +1460,10 @@ class ITB_Analysis:
         #arr_peak_selection = [3,4,10] #169707
         #arr_toff = 1e-4*np.array([1.2,-2.2,-1.0])    #169707
         buf_highK, buf_mp, buf_radh, buf_t_highK, buf_t_mp, buf_t_radh, timedata_peaks_ltd, _, _ = self.conditional_average_highK(t_st=4.3, t_ed=4.6, arr_peak_selection=arr_peak_selection, arr_toff=arr_toff)
-        arr_peak_selection = [1,2,5,6,7,8]#169712
-        arr_toff = [-2e-4, -3.5e-4, -3.5e-4, -1.5e-4, -2.5e-4, 0.5e-4]    #169712
-        #arr_peak_selection = [0,6,7,8,9,10,12,13]#169715
-        #arr_toff = 1e-4*np.array([-3,-1,0,-0.5,-1,-3,-2,-0.5])    #169715
+        #arr_peak_selection = [1,2,5,6,7,8]#169712
+        #arr_toff = [-2e-4, -3.5e-4, -3.5e-4, -1.5e-4, -2.5e-4, 0.5e-4]    #169712
+        arr_peak_selection = [0,6,7,8,9,10,12,13]#169715
+        arr_toff = 1e-4*np.array([-3,-1,0,-0.5,-1,-3,-2,-0.5])    #169715
         #arr_peak_selection =[1,2,8] #169693
         #arr_toff = 1e-4*np.array([-3,-2,-2])    #169693
         #arr_peak_selection =[5,7,10] #169698
@@ -1284,7 +1538,7 @@ class ITB_Analysis:
         label_radh = "ECE(rho=" + str(r[i_ch+4]) + ")"
         c = ax1.plot(buf_t_radh, cond_av_radh[:, i_ch+4]+0.6, 'y-', label=label_radh, zorder=2)
         '''
-        #a = ax2.plot(buf_t_highK, 1e3*cond_av_highK, 'b-', label='highK', zorder=3)
+        d = ax2.plot(buf_t_highK, 1e3*cond_av_highK, 'c-', label='highK', zorder=3)
         a = ax2.plot(buf_t_highK, 1e3*y2_highK, 'b-', label='highK', zorder=3)
         plt.title('Low-pass(<%dHz), #%d, %d' % (fs, ShotNo_1, ShotNo_2), loc='right')
         ax1.grid(axis='x', b=True, which='major', color='#666666', linestyle='-')
@@ -1317,20 +1571,55 @@ class ITB_Analysis:
         filename_radh_filtered = '_ch%d_LP%dHz_%d_%d.txt' % (i_ch+1, fs ,ShotNo_1, ShotNo_2)
         #np.savetxt('radh_array_condAV' + filename, cond_av_radh)
         #np.savetxt('radh_timedata_condAV' + filename, buf_t_radh)
-        #np.savetxt('highK_array_condAV' + filename, cond_av_highK)
-        #np.savetxt('highK_timedata_condAV' + filename, buf_t_highK)
+        np.savetxt('highK_array_condAV' + filename, cond_av_highK)
+        np.savetxt('highK_timedata_condAV' + filename, buf_t_highK)
         #np.savetxt('mp_array_condAV' + filename, cond_av_mp)
         #np.savetxt('mp_timedata_condAV' + filename, buf_t_mp)
         np.savetxt('radh_array_condAV' + filename_radh_filtered, y2)
         np.savetxt('highK_array_condAV' + filename_filtered, y2_highK)
-        np.savetxt('mp_array_condAV' + filename_filtered, y2_mp)
+        #np.savetxt('mp_array_condAV' + filename_filtered, y2_mp)
 
         return buf_t_radh, cond_av_radh
 
 
+    def cal_hurstd_radh(self, t_st=None, t_ed=None):
+
+        data_name_info = 'radhinfo' #radlinfo
+        data_name_pxi = 'RADHPXI' #RADLPXI
+        data_radhinfo = AnaData.retrieve(data_name_info, self.ShotNo, 1)
+
+        '''
+        data_name_highK = 'mwrm_highK_Power3' #RADLPXI data_radhinfo = AnaData.retrieve(data_name_info, self.ShotNo, 1)
+        data = AnaData.retrieve(data_name_highK, self.ShotNo, 1)
+        vnum = data.getValNo()
+        for i in range(vnum):
+            print(i, data.getValName(i), data.getValUnit(i))
+        timedata = data.getDimData('Time')
+        voltdata= data.getValData('Amplitude (20-200kHz)')
+        voltdata += 1
+
+        '''
+        i_ch = 14#13#9
+        timedata = TimeData.retrieve(data_name_pxi, self.ShotNo, 1, 1).get_val()
+        voltdata = VoltData.retrieve(data_name_pxi, self.ShotNo, 1, i_ch+1).get_val()
+
+        idx_time_st = find_closest(timedata, t_st)
+        idx_time_ed = find_closest(timedata, t_ed)
+
+        plt.plot(timedata[idx_time_st:idx_time_ed], voltdata[idx_time_st:idx_time_ed])
+        plt.show()
+
+        for lag in [100, 500, 1000, 5000, 10000, 50000]:# 300000]:
+        #for lag in [30, 100, 300, 500, 2000, 10000, 30000, 50000, 100000]:# 300000]:
+            hurst_exp = get_hurst_exponent(voltdata[idx_time_st:idx_time_ed], lag)
+            print(f"Hurst exponent with {lag} lags: {hurst_exp:.4f}")
+            hurst_exp2 = hurst(voltdata[idx_time_st:idx_time_st+lag])
+            print(f"Hurst exponent 2 with {lag} lags: {hurst_exp2:.4f}")
 
     def ana_plot_radh_highK(self, t_st=None, t_ed=None):
         data_name_highK = 'mwrm_highK_Power3' #RADLPXI data_radhinfo = AnaData.retrieve(data_name_info, self.ShotNo, 1)
+        #data_name_highK = 'mwrm_highK_Power1' #RADLPXI data_radhinfo = AnaData.retrieve(data_name_info, self.ShotNo, 1)
+        #data_name_highK = 'mwrm_highK_Power2' #RADLPXI data_radhinfo = AnaData.retrieve(data_name_info, self.ShotNo, 1)
         data = AnaData.retrieve(data_name_highK, self.ShotNo, 1)
         vnum = data.getValNo()
         for i in range(vnum):
@@ -1342,12 +1631,14 @@ class ITB_Analysis:
         #plt.show()
         data_highK = data.getValData('Amplitude (20-200kHz)')
 
-        data_name_info = 'radhinfo' #radlinfo
-        data_name_pxi = 'RADHPXI' #RADLPXI
+        #data_name_info = 'radhinfo' #radlinfo
+        #data_name_pxi = 'RADHPXI' #RADLPXI
+        data_name_info = 'radminfo' #radlinfo
+        data_name_pxi = 'RADMPXI' #RADLPXI
         data_radhinfo = AnaData.retrieve(data_name_info, self.ShotNo, 1)
         r = data_radhinfo.getValData('rho')
 
-        i_ch = 9#14#13
+        i_ch = 6#5#14#13#9
         timedata = TimeData.retrieve(data_name_pxi, self.ShotNo, 1, 1).get_val()
         voltdata = VoltData.retrieve(data_name_pxi, self.ShotNo, 1, i_ch+1).get_val()
 
@@ -1362,7 +1653,7 @@ class ITB_Analysis:
         data_mp_2d = data_mp.getValData(0)
         t_mp = data_mp.getDimData('TIME')
 
-        _, _, _, timedata_peaks_ltd,_ = self.findpeaks_radh(t_st, t_ed, i_ch)
+        _, _, _, timedata_peaks_ltd,_,_,_ = self.findpeaks_radh(t_st, t_ed, i_ch)
         t_offset_st = 4.3915
         t_offset_ed = 4.3925
         offset_highK = np.mean(data_highK[find_closest(t, t_offset_st):find_closest(t, t_offset_ed)])
@@ -1390,8 +1681,8 @@ class ITB_Analysis:
             arr_reff_a99_highK.append(reff_a99_highK[find_closest(t, timedata_peaks_ltd[i])])
 
 
-        a = ax1.plot(t, 1e3*data_highK, 'b-', label='highK')
         b = ax1.plot(t_mp, data_mp_2d[:,0], 'g-', label='mp_raw')
+        a = ax1.plot(t, 7e2*data_highK, 'b-', label='highK')
         label_radh = "ECE(rho=" + str(r[i_ch]) + ")"
         c = ax2.plot(timedata, voltdata, 'r-', label=label_radh)
         plt.title('#%d' % self.ShotNo, loc='right')
@@ -1402,12 +1693,14 @@ class ITB_Analysis:
         ax1.set_ylabel('b_dot_tilda [T/s]')
         ax2.set_ylabel('Intensity of ECE [a.u.]', rotation=270, labelpad=15)
         fig.legend(loc=1, bbox_to_anchor=(1, 1), bbox_transform=ax1.transAxes)
-        #plt.xlim(3.0, 5.3)
-        plt.xlim(4.40, 4.48)
+        plt.xlim(3.0, 6.2)
+        #plt.xlim(4.40, 4.48)
+        #plt.xlim(4.3, 4.50)
         #plt.xlim(4.398787, 4.403755)
-        ax1.set_ylim(-5,30)
-        #ax2.set_ylim(-3.4,-2.4)
+        ax1.set_ylim(-3,5)
+        ax2.set_ylim(-4.8,-3.3)
         #plt.savefig("timetrace_radh_highK_mp_t439to440_No%d.png" % self.ShotNo)
+        plt.tight_layout()
         plt.show()
 
         mean_sum_highK = statistics.mean(arr_sum_highK)
@@ -1552,9 +1845,10 @@ class ITB_Analysis:
 
         # 次元 'R' のデータを取得 (要素数137 の一次元配列(numpy.Array)が返ってくる)
         #r = data.getDimData('reff')
+        '''
         fig = plt.figure(figsize=(5, 2.5), dpi=250)
         plt.title(self.ShotNo, fontsize=12, loc='right')
-        arr_erace = [5, 7,8,9,10,11,12,13,14,15,16,17,18,19,20,21,22,24,25,26,27,28,32,33,44,45,46,47,50,51,58]
+        arr_erace = [5, 7,8,9,10,11,12,13,14,15,16,17,18,19,20,21,22,24,25,26,27,28,32,33,44,45,46,47,50,51]#,58]
         #plt.pcolormesh(t[:-1], r, (Te[1:, :]-Te[:-1, :]).T, cmap='bwr')
         #plt.pcolormesh(t, r[arr_erace], Te[:,arr_erace].T, cmap='jet', vmin=0, vmax=3)
         plt.pcolormesh(t, rho[0,arr_erace], Te[:,arr_erace].T, cmap='jet', vmin=0, vmax=4)
@@ -1568,11 +1862,12 @@ class ITB_Analysis:
         plt.xlabel(r"Time [sec]", fontsize=12)
         #plt.ylabel("R [m]")
         plt.ylabel(r"r/a(vacuum)", fontsize=12)
-        plt.xlim(4.4, 4.65)
+        plt.xlim(3.0, 6.0)
         plt.ylim(0.38, 0.7)
         #plt.ylim(3.85, 4.2)
         plt.tick_params(which='both', axis='both', right=True, top=True, left=True, bottom=True, labelsize=10)
         plt.show()
+        '''
 
         vnum = data.getValNo()
         for i in range(vnum):
@@ -1594,28 +1889,34 @@ class ITB_Analysis:
         axarr[1].set_ylabel(r'$T_e$ [keV]', fontsize=18)
         axarr[1].set_xlabel('Time [sec]', fontsize=18)
         axarr[0].set_ylabel(r'$n_eL\ [10^{19}m^{-2}]$', fontsize=14)
-        axarr[1].set_ylim(0, 7.5)
+        axarr[1].set_ylim(0, 6)
         #axarr[0].set_xlim(4.3, 4.8)
         #axarr[0].set_xlim(2.8, 6.0)
         #axarr[0].set_xlim(3.3, 5.3)
-        #axarr[1].set_xlim(4.4, 4.65)
-        axarr[0].set_xlim(4.4, 4.6)
+        #axarr[1].set_xlim(4.35, 4.55)
+        #axarr[0].set_xlim(4.4, 4.6)
         #axarr[0].set_xlim(3, 6)
-        #axarr[1].set_xlim(3, 6)
+        axarr[1].set_xlim(3, 6.5)
         #axarr[0].set_ylim(0, )
         #axarr[1].set_ylim(0, )
         #axarr[0].set_xticklabels([])
         axarr[0].tick_params(which='both', axis='both', right=True, top=True, left=True, bottom=True, labelsize=12)
         axarr[1].tick_params(which='both', axis='both', right=True, top=True, left=True, bottom=True, labelsize=12)
 
-        arr_erace = [5, 7,8,9,10,11,12,13,14,15,16,17,18,19,20,21,22,24,25,26,27,28,32,33,44,45,46,47,50,51,58]
-        axarr[1].plot(t, Te[:, arr_erace])
+        #arr_erace = [5, 7,8,9,10,11,12,13,14,15,16,17,18,19,20,21]#,22,24,25,26,27,28,32,33,44,45,46,47,50,51]#,58]
+        #axarr[1].plot(t, Te[:, arr_erace])
+        axarr[1].plot(t, Te)
         for i in range(vnum):
             ne_bar = data.getValData(i)
             axarr[0].plot(t_fir, ne_bar)
         f.align_labels()
+        plt.savefig("timetrace_ECE_FIR_No%d.png" % self.ShotNo)
         plt.show()
-        #plt.savefig("timetrace_ECE_FIR_No%d.png" % self.ShotNo)
+
+        #t_data_ece = np.vstack((t, Te[:, arr_erace].T))
+        #filename = '_%d.txt' % (self.ShotNo)
+        #np.savetxt('time_ECE' + filename, t_data_ece.T)
+
 
     def ana_plot_discharge_waveform_basic(self):
         data_wp = AnaData.retrieve('wp', self.ShotNo, 1)
@@ -1672,7 +1973,7 @@ class ITB_Analysis:
         plt.show()
         #plt.savefig("timetrace_%d.png" % self.ShotNo)
 
-    def ana_plot_discharge_waveform4ITB(self):
+    def ana_plot_discharge_waveform4ITB(self, isSaveData=False):
         data_wp = AnaData.retrieve('wp', self.ShotNo, 1)
         data_ECH = AnaData.retrieve('echpw', self.ShotNo, 1)
         data_fir = AnaData.retrieve('fir_nel', self.ShotNo, 1)
@@ -1689,6 +1990,7 @@ class ITB_Analysis:
         t_fir = data_fir.getDimData('Time')
         t_ip = data_ip.getDimData('Time')
 
+
         f, axarr = plt.subplots(5, 1, gridspec_kw={'wspace': 0, 'hspace': 0}, figsize=(7,7), dpi=150, sharex=True)
 
         # データ取得
@@ -1704,17 +2006,26 @@ class ITB_Analysis:
         axarr[2].axhline(y=0, color='black', linestyle='dashed', linewidth=0.5)
         view_ECH = np.array([12, 0, 1, 2, 4, 6])
         #view_ECH = np.array([12, 0, 1, 2, 4, 5, 6, 7])
+
+        data_ECH_array = np.zeros((len(t_ECH), len(view_ECH)+1))
+        data_ECH_array[:, 0] = t_ECH
         for i in range(len(view_ECH)):
             data_ = data_ECH.getValData(view_ECH[i])
             axarr[4].plot(t_ECH, data_, '-', label=data_ECH.getValName(view_ECH[i]), color=self.arr_color[i])
+            data_ECH_array[:, i+1] = data_
 
         arr_data_name = ['nb1', 'nb2', 'nb3', 'nb4a', 'nb4b', 'nb5a', 'nb5b']
+        data_NBI = AnaData.retrieve(arr_data_name[0] + 'pwr_temporal', self.ShotNo, 1)
+        t_NBI = data_NBI.getDimData('time')
+        data_NBI_array = np.zeros((len(t_NBI), len(arr_data_name)+1))
+        data_NBI_array[:, 0] = t_NBI
         for i in range(len(arr_data_name)):
             data_NBI = AnaData.retrieve(arr_data_name[i] + 'pwr_temporal', self.ShotNo, 1)
-            data_NBI_ = data_NBI.getValData(1)
             t_NBI = data_NBI.getDimData('time')
+            data_NBI_ = data_NBI.getValData(1)
             label = str.upper(arr_data_name[i])
             axarr[3].plot(t_NBI, data_NBI_, label=label, color=self.arr_color[i])
+            data_NBI_array[:, i+1] = data_NBI_
 
         data_wp_ = data_wp.getValData('Wp')
         data_fir_ = data_fir.getValData(0)
@@ -1722,7 +2033,7 @@ class ITB_Analysis:
         axarr[0].plot(t_Wp, data_wp_, color='black')
         axarr[1].plot(t_fir, data_fir_, color='red')
         axarr[2].plot(t_ip, data_ip_, label='Ip', color='blue')
-        axarr[0].set_xlim(3, 6)
+        axarr[0].set_xlim(3, 6.5)
         axarr[0].set_ylim(0,)
         axarr[1].set_ylim(0,)
         axarr[3].set_ylim(0,)
@@ -1741,8 +2052,18 @@ class ITB_Analysis:
         axarr[3].tick_params(which='both', axis='both', right=True, top=True, left=True, bottom=True, labelsize=9)
         axarr[4].tick_params(which='both', axis='both', right=True, top=True, left=True, bottom=True, labelsize=9)
         f.align_labels()
+        plt.savefig("timetrace_%d.png" % self.ShotNo)
         plt.show()
-        #plt.savefig("timetrace_%d.png" % self.ShotNo)
+        if isSaveData:
+            t_data_Wp = np.stack((t_Wp, data_wp_))
+            t_data_fir = np.stack((t_fir, data_fir_))
+            t_data_Ip = np.stack((t_ip, data_ip_))
+            filename = '_%d.txt' % (self.ShotNo)
+            np.savetxt('time_Wp' + filename, t_data_Wp.T)
+            np.savetxt('time_fir' + filename, t_data_fir.T)
+            np.savetxt('time_ip' + filename, t_data_Ip.T)
+            np.savetxt('time_ECH' + filename, data_ECH_array)
+            np.savetxt('time_NBI' + filename, data_NBI_array)
 
     def ana_plot_discharge_waveform(self):
         data_wp = AnaData.retrieve('wp', self.ShotNo, 1)
@@ -1953,11 +2274,14 @@ class ITB_Analysis:
         reff = data.getValData('reff/a99')
         Te = data.getValData('Te')
         dTe = data.getValData('dTe')
+        #dTedr = data.getValData('dTedr')
+        #dTedr_err = data.getValData('dTedr_err')
         ne = data.getValData('ne_calFIR')
         dne = data.getValData('dne_calFIR')
         Te_fit = data.getValData('Te_fit')
         ne_fit = data.getValData('ne_fit')
         r = data.getDimData('R')
+
 
         # 次元 'Time' のデータを取得 (要素数96 の一次元配列(numpy.Array)が返ってくる)
         t = data.getDimData('Time')
@@ -1968,58 +2292,71 @@ class ITB_Analysis:
         #arr_all = movingaverage(data_2d=Te, axis=0, windowsize=5)
         arr_all = signal.convolve2d(Te, kernel, boundary='symm', mode='same')
         arr_all_dTe = signal.convolve2d(dTe, kernel, boundary='symm', mode='same')
+        arr_all_ne = signal.convolve2d(ne, kernel, boundary='symm', mode='same')
+        arr_all_dne = signal.convolve2d(dne, kernel, boundary='symm', mode='same')
+        arr_all_Pe_err = arr_all*arr_all_dne + arr_all_ne*arr_all_dTe
+        #arr_all_dTedr = signal.convolve2d(dTedr, kernel, boundary='symm', mode='same')
+        #arr_all_dTedr_err = signal.convolve2d(dTedr_err, kernel, boundary='symm', mode='same')
         arr_R = r
         arr_1 = reff
         arr_dR = arr_R[1:] - arr_R[:-1]
         arr_dR_s = np.squeeze(arr_dR)
+        arr_all_pe = 1.602176634*arr_all*arr_all_ne
+        arr_2_pe = (arr_all_pe[:,1:] - arr_all_pe[:, :-1]).T
+        arr_2_pe_err = (arr_all_Pe_err[:,1:] + arr_all_Pe_err[:, :-1]).T
+        arr_dPedR = arr_2_pe.T/arr_dR_s
+        arr_dPedR_err = arr_2_pe_err.T
         arr_2 = (arr_all[:,1:] - arr_all[:, :-1]).T
         arr_dTedR = arr_2.T/arr_dR_s
+        #arr_dTedR = arr_all_dTedr[:,:-1]
 
 
-        fig = plt.figure(figsize=(8,2), dpi=150)
+        fig = plt.figure(figsize=(8,2), dpi=600)
         plt.rcParams['font.family'] = 'sans-serif'  # 使用するフォント
         plt.rcParams['xtick.direction'] = 'in'  # x軸の目盛線が内向き('in')か外向き('out')か双方向か('inout')
         plt.rcParams['ytick.direction'] = 'in'  # y軸の目盛線が内向き('in')か外向き('out')か双方向か('inout')
         plt.rcParams["xtick.minor.visible"] = True  # x軸補助目盛りの追加
         plt.rcParams["ytick.minor.visible"] = True  # y軸補助目盛りの追加
 
-        '''
         X, _ = np.meshgrid(t, reff[0, :])
         #plt.pcolormesh(hs_thomson['Time'], hs_thomson['R'], arr_all.T, cmap='jet', vmin=0, vmax=6)
         #plt.pcolormesh(X, arr_1.T, arr_all.T, cmap='jet', vmin=0, vmax=10)
         #plt.pcolormesh((arr_all[:,1:] - arr_all[:, :-1]).T, cmap='bwr', vmin=-1, vmax=1)
         #plt.pcolormesh(X[1:, :], arr_1[:, 1:].T, arr_2, cmap='bwr', vmin=-1, vmax=1)
         #plt.pcolormesh(X[1:, :], arr_1[:, 1:].T, arr_dTedR.T, cmap='bwr', vmin=-100, vmax=100)
-        plt.pcolormesh(X, arr_1.T, arr_all.T, cmap='jet', vmin=0, vmax=15)
+        plt.pcolormesh(X[1:, 2:69], arr_1[2:69, 1:].T, arr_dPedR[2:69, :].T, cmap='bwr', vmin=-150, vmax=150)
+        #plt.pcolormesh(X, arr_1.T, arr_all.T, cmap='jet', vmin=0, vmax=15)
         #plt.pcolormesh(np.array(tsmap_calib['Time']), np.array(tsmap_calib['reff/a99']), (arr_all[:,1:] - arr_all[:, :-1]).T, cmap='bwr', vmin=-1, vmax=1)
         #plt.vlines(4.398907, -1, 1, colors='red')
         #plt.vlines(4.399857, -1, 1, colors='blue')
         plt.title('SN' + str(self.ShotNo), loc='right')
         plt.xlabel('Time [sec]')
         #plt.ylim(-1, 1)
-        #plt.ylabel('R [m]')
-        plt.xlim(3.3, 5.3)
-        plt.ylabel('$r_{eff}/a_{99}$', fontsize=15)
+        plt.ylabel('R [m]')
+        #plt.ylabel('$r_{eff}/a_{99}$', fontsize=15)
         #plt.ylim(2.9, 4.50)
         cbar = plt.colorbar(pad=0.01)
         cbar.ax.get_yaxis().labelpad = 15
         #cbar.set_label('$dT_e/dR$ [keV/m]', rotation=270)
-        cbar.set_label('$T_e$ [keV]', rotation=270)
-        idx_time = np.arange(86)
-        idx_max = np.argmax(arr_dTedR[:, 30:70], axis=1)
-        idx_min = np.argmin(arr_dTedR[:, 30:70], axis=1)
-        reffa99_max = arr_1[idx_time, idx_max+31]
-        reffa99_min = arr_1[idx_time, idx_min+31]
-        plt.plot(t, reffa99_max, 'ro', markersize=2)
-        plt.plot(t, reffa99_min, 'bo', markersize=2)
-        plt.xlim(3.3, 5.3)
+        #cbar.set_label('$T_e$ [keV]', rotation=270)
+        idx_time = np.arange(len(t))
+        idx_max = np.argmax(arr_dPedR[:, 37:53], axis=1)
+        #idx_max = np.argmax(arr_dTedR[:, 30:70], axis=1)
+        #idx_min = np.argmin(arr_dTedR[:, 30:70], axis=1)
+        idx_min = np.argmin(arr_dPedR[:, 53:67], axis=1)
+        #reffa99_max = arr_1[idx_time, idx_max+31]
+        reffa99_max = arr_1[idx_time, idx_max+38]
+        reffa99_min = arr_1[idx_time, idx_min+54]
+        plt.plot(t[2:69], reffa99_max[2:69], 'ro', markersize=2)
+        plt.plot(t[2:69], reffa99_min[2:69], 'bo', markersize=2)
+        plt.xlim(3.0, 6.0)
         #plt.ylim(-1, 1)
         plt.ylim(-0.6, 0.6)
         plt.tick_params(which='both', axis='both', right=True, top=True, left=True, bottom=True, labelsize=8)
         #plt.show()
         plt.show()
-        '''
 
+        '''
         fig = plt.figure(figsize=(5, 2.5), dpi=150)
         #i_time = 29
         #label = 't=' + str(np.array(t[i_time])) + 's'
@@ -2044,11 +2381,18 @@ class ITB_Analysis:
         plt.ylabel('$T_e [keV]$')
         plt.title('SN' + str(self.ShotNo), loc='right')
         plt.show()
-
         '''
+
         fig = plt.figure(figsize=(8,2), dpi=150)
-        plt.plot(t, np.max(arr_dTedR[:, 30:90], axis=1), 'r-', label='reff/a99<0')
-        plt.plot(t, np.abs(np.min(arr_dTedR[:, 30:90], axis=1)), 'b-', label='reff/a99>0')
+        #plt.plot(t, np.max(arr_dTedR[:, 30:90], axis=1), 'r-', label='reff/a99<0')
+        #plt.plot(t, np.max(arr_dPedR[:, 30:70], axis=1), 'r-', label='reff/a99<0')
+        plt.plot(t, np.abs(arr_dPedR[idx_time, idx_max+37]), 'r-', label='reff/a99<0')
+        #plt.plot(t, np.abs(np.min(arr_dTedR[:, 30:90], axis=1)), 'b-', label='reff/a99>0')
+        #plt.plot(t, np.abs(np.min(arr_dPedR[:, 30:70], axis=1)), 'b-', label='reff/a99>0')
+        plt.plot(t, np.abs(arr_dPedR[idx_time, idx_min+53]), 'b-', label='reff/a99>0')
+        plt.plot(t, ((np.abs(arr_dPedR[idx_time, idx_max+37]))+np.abs(arr_dPedR[idx_time, idx_min+53]))/2 , 'g-', label='averaged')
+        plt.fill_between(t, np.abs(arr_dPedR[idx_time, idx_max+37]) - arr_dPedR_err[idx_time, idx_max+37],
+                         np.abs(arr_dPedR[idx_time, idx_max+37]) + arr_dPedR_err[idx_time, idx_max+37], alpha=0.15, color='red', edgecolor='white')
         plt.xlim(3.3, 5.3)
         plt.ylim(0,150)
         plt.title('SN' + str(self.ShotNo), loc='right')
@@ -2057,7 +2401,8 @@ class ITB_Analysis:
         plt.legend()
         plt.tick_params(which='both', axis='both', right=True, top=True, left=True, bottom=True, labelsize=8)
         plt.show()
-        '''
+        #filename = 't_dPedRmax_dPedRmin_dPedRerrmax_dPedRerrmin' + str(self.ShotNo) + '.txt'
+        #np.savetxt(filename, np.c_[t, np.abs(arr_dPedR[idx_time, idx_max+37]), arr_dPedR_err[idx_time, idx_max+37], np.abs(arr_dPedR[idx_time, idx_min+53]), arr_dPedR_err[idx_time, idx_min+53]])
 
     def ana_plot_eg(self, arr_time):
         plt.clf()
@@ -2258,7 +2603,7 @@ def ana_findpeaks_shotarray():
         try:
             for i, shotno in enumerate(shot_array):
                 itba = ITB_Analysis(shotno)
-                buf_array_A, buf_array_tau, buf_array_b, _,_ = itba.findpeaks_radh(t_st=t_st, t_ed=t_ed, i_ch=i_ch)
+                buf_array_A, buf_array_tau, buf_array_b, _,_,_,_ = itba.findpeaks_radh(t_st=t_st, t_ed=t_ed, i_ch=i_ch)
                 array_A.extend(buf_array_A)
                 array_tau.extend(buf_array_tau)
                 array_b.extend(buf_array_b)
@@ -2363,12 +2708,112 @@ def movingaverage(data_2d,axis=1,windowsize=3):
     return answer
 
 
+def get_hurst_exponent(time_series, max_lag=20):
+    """Returns the Hurst Exponent of the time series"""
+
+    #lags = range(2, max_lag)
+    lags = range(1, max_lag)
+
+    # variances of the lagged differences
+    tau = [np.std(np.subtract(time_series[lag:], time_series[:-lag])) for lag in lags]
+
+    # calculate the slope of the log plot -> the Hurst Exponent
+    reg = np.polyfit(np.log(lags), np.log(tau), 1)
+
+    plt.plot(lags, tau)
+    plt.loglog(basex=10, basey=10)
+    plt.grid(which='major', color='black', linestyle='-')
+    plt.grid(which='minor', color='black', linestyle='-')
+    plt.show()
+
+    return reg[0]
+
+
+def hurst(ts):
+    ts = list(ts)
+    N = len(ts)
+    if N < 20:
+        raise ValueError("Time series is too short! input series ought to have at least 20 samples!")
+
+    max_k = int(np.floor(N / 2))
+    R_S_dict = []
+    for k in range(10, max_k + 1):
+        R, S = 0, 0
+        # split ts into subsets
+        subset_list = [ts[i:i + k] for i in range(0, N, k)]
+        if np.mod(N, k) > 0:
+            subset_list.pop()
+            # tail = subset_list.pop()
+            # subset_list[-1].extend(tail)
+        # calc mean of every subset
+        mean_list = [np.mean(x) for x in subset_list]
+        for i in range(len(subset_list)):
+            cumsum_list = pd.Series(subset_list[i] - mean_list[i]).cumsum()
+            R += max(cumsum_list) - min(cumsum_list)
+            S += np.std(subset_list[i])
+        R_S_dict.append({"R": R / len(subset_list), "S": S / len(subset_list), "n": k})
+
+    log_R_S = []
+    log_n = []
+    R_S_ = []
+    n = []
+    #print(R_S_dict)
+    for i in range(len(R_S_dict)):
+        R_S = (R_S_dict[i]["R"] + np.spacing(1)) / (R_S_dict[i]["S"] + np.spacing(1))
+        log_R_S.append(np.log(R_S))
+        log_n.append(np.log(R_S_dict[i]["n"]))
+        R_S_.append(R_S)
+        n.append(R_S_dict[i]["n"])
+
+    plt.plot(n, R_S_)
+    plt.loglog(basex=10, basey=10)
+    plt.grid(which='major', color='black', linestyle='-')
+    plt.grid(which='minor', color='black', linestyle='-')
+    plt.show()
+
+    Hurst_exponent = np.polyfit(log_n, log_R_S, 1)[0]
+    return Hurst_exponent
+
+def test_laplace_asymmetric():
+    fig = plt.figure(figsize=(12, 6), dpi=150)
+    x = np.linspace(-1e-3, 1e-3, 1000)
+    plt.plot(x, laplace_asymmetric_pdf(x, 0, 1, 0, 1, 1e-4))
+    plt.plot(x, laplace_asymmetric_pdf_2(x, 0, 1, 0, 1, 1e-4), label='power')
+    plt.legend()
+    plt.show()
+
+
+def laplace_asymmetric_pdf(x, y0, kappa, loc, scale, b):
+    kapinv = 1/kappa
+    lPx = scale * (x - loc) * np.where(x >= loc, -kappa, kapinv) / b
+    lPx -= np.log(kappa+kapinv)
+
+    return np.exp(lPx) * scale / (2*b) + y0
+
+def laplace_asymmetric_pdf_double(x, y0, kappa, loc, scale, b):
+    kapinv = 1/kappa
+    lPx = scale * (x - loc) * np.where(x >= loc, -kappa, kapinv) / b
+    lPx -= np.log(kappa+kapinv)
+
+    return np.exp(np.exp(lPx)) * scale / (2*b) + y0
+
+def laplace_asymmetric_pdf_0(x, kappa, loc, scale):
+    kapinv = 1/kappa
+    #x2 = scale*(x - loc)
+    #x2 = (x - loc) / scale
+    x2 = x*scale + loc
+    lPx = x2 * np.where(x2 >= 0, -kappa, kapinv)
+    lPx -= np.log(kappa+kapinv)
+
+    return np.exp(lPx) * scale
+
+
 if __name__ == "__main__":
     start = time.time()
+    #test_laplace_asymmetric()
     #for i in range(163943, 163975):
     #    itba = ITB_Analysis(i)
-    #    #itba.ana_plot_ece()
-    #    itba.ana_plot_discharge_waveform4ITB()
+    #    #itba.ana_plot_ece() #    itba.ana_plot_discharge_waveform4ITB()
     #    itba.ana_plot_fluctuation()
     #    itba.ana_plot_allTS_sharex()
     #ShotNo = input('Enter Shot Number: ')
@@ -2376,24 +2821,28 @@ if __name__ == "__main__":
     #ana_findpeaks_shotarray()
     #ana_delaytime_shotarray()
     #itba = ITB_Analysis(int(ShotNo))
-    itba = ITB_Analysis(169710, 169712)#167088), 163958
-    #itba.ana_plot_highSP_TS(0)
+    itba = ITB_Analysis(176286, 169717)#167088), 163958
+    #itba.ana_plot_highSP_TS(1)
     #itba.get_ne(target_t=4.4, target_r=0.2131075)
     #itba.ana_plot_ece()
-    #itba.ana_plot_radh(t_st=4.40, t_ed=4.50)
+    #itba.ana_plot_radh(t_st=2.50, t_ed=3.30)
+    #itba.ana_plot_radh_highK(t_st=3.5, t_ed=3.80)
     #itba.plot_TS()
     #itba.plot_2TS()
     #itba.ana_plot_pci_test()
     #itba.conditional_average_highK(t_st=4.3, t_ed=4.6)
-    itba.combine_shots_data()
+    itba.conditional_average_highK_mppk(t_st=3.5, t_ed=4.70)
+    #itba.combine_shots_data()
     #itba.findpeaks_radh(t_st=4.4, t_ed=4.6, i_ch=26)
+    #itba.findpeaks_mp(t_st=3.7, t_ed=3.75, i_ch=0)
     #itba.find_peaks_radh_allch(t_st=4.4, t_ed=4.6)
     #itba.ana_delaytime_radh_allch(t_st=4.3, t_ed=4.6, isCondAV=True)
     #itba.ana_plot_stft()
     #itba.ana_plot_fluctuation()
     #itba.ana_plot_allMSE_sharex()
     #itba.ana_plot_discharge_waveform_basic()
-    #itba.ana_plot_discharge_waveform4ITB()
+    #itba.ana_plot_discharge_waveform4ITB(isSaveData=False)
+    #itba.cal_hurstd_radh(t_st=4.35, t_ed=4.7
     #itba.ana_plot_allTS_sharex()
     #itba.ana_plot_allThomson_sharex()
     #itba.ana_plot_discharge_waveforms(arr_ShotNo=[127704, 127705, 127709, 131617, 131618, 143883, 143895])
