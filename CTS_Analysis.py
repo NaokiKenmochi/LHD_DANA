@@ -203,6 +203,17 @@ class CTS_Analysis:
 
         print('start plot')
         if isPlot:
+
+            plt.title('#%d' % shotNo, loc='right')
+            plt.plot(f, np.mean(Zxx[:, idx_time_st:idx_time_ed], axis=1), color='blue')
+            plt.plot(f, np.mean(Zxx[:, idx_time2_st:idx_time2_ed], axis=1), color='red')
+            Zxx_sub = np.mean(Zxx[:, idx_time_st:idx_time_ed], axis=1)-np.mean(Zxx[:, idx_time2_st:idx_time2_ed], axis=1)
+            plt.plot(f, Zxx_sub, color='green')
+            plt.xlabel("Frequency [GHz]")
+            plt.ylabel("PSD [a.u.]")
+            plt.yscale('log')
+            plt.show()
+
             coef_vmax = float(input('Enter coef_vmax: '))
             # vmax = 0.05*np.max(Zxx)
             vmax = coef_vmax * np.max(Zxx)
@@ -222,7 +233,8 @@ class CTS_Analysis:
             #ax2 = fig.add_subplot(312)
             #ax3 = fig.add_subplot(313)
             print('start pcolormesh')
-            ax1.pcolormesh(t + time_offset, f, np.abs(Zxx), vmin=0, vmax=vmax, cmap='inferno')
+            #ax1.pcolormesh(t + time_offset, f, np.abs(Zxx), vmin=0, vmax=vmax, cmap='inferno')
+            ax1.pcolormesh(t[::100] + time_offset, f, np.abs(Zxx[::1, ::100]), vmin=0, vmax=vmax, cmap='inferno')
             ax1.axvline(val_time_st, ls="-", color="blue")
             ax1.axvline(val_time_ed, ls="-", color="blue")
             ax1.axvline(val_time2_st, ls="-", color="red")
@@ -464,6 +476,9 @@ class CTS_Analysis:
         print("'stft': Calc STFT")
         print("'pstft': Plot STFT figure")
         print("'fft': Plot STFT figure")
+        print("'value': Show parameters")
+        print("'SaveValue'(sv): Save values")
+        print("'LoadValue'(lv): Load values")
         #val_time_show_st = 3.48
         #val_time_show_ed = 3.56
         #val_time_st = 3.505
@@ -559,11 +574,56 @@ class CTS_Analysis:
                     print("'stft': Calc STFT")
                     print("'pstft': Plot STFT figure")
                     print("'fft': Plot STFT figure")
+                    print("'value': Show parameters")
+                    print("'SaveValue'(sv): Save values")
+                    print("'LoadValue'(lv): Load values")
 
                 if val == 'value':
                     print('shotNo:%d' % int(shotNo))
                     print('Time:%.4f-%.4f, %.4f-%.4f' % (float(val_time_st), float(val_time_ed), float(val_time2_st), float(val_time2_ed)))
                     print('Showing Time:%.4f-%.4f' % (float(val_time_show_st), float(val_time_show_ed)))
+
+                if val == 'SaveValue' or str.upper(val) == 'SV':
+                    array_value = np.zeros(7)
+                    array_value[0] = shotNo
+                    array_value[1] = val_time_st
+                    array_value[2] = val_time_ed
+                    array_value[3] = val_time2_st
+                    array_value[4] = val_time2_ed
+                    array_value[5] = val_time_show_st
+                    array_value[6] = val_time_show_ed
+                    np.savez('value_CTS_Analysis', array_value)
+
+                if val == 'LoadValue' or str.upper(val) == 'LV':
+                    array_value = np.load('value_CTS_Analysis.npz')
+                    shotNo = array_value['arr_0'][0]
+                    val_time_st = array_value['arr_0'][1]
+                    val_time_ed = array_value['arr_0'][2]
+                    val_time2_st = array_value['arr_0'][3]
+                    val_time2_ed = array_value['arr_0'][4]
+                    val_time_show_st = array_value['arr_0'][5]
+                    val_time_show_ed = array_value['arr_0'][6]
+
+                if val == 'SaveValue2' or str.upper(val) == 'SV2':
+                    array_value = np.zeros(7)
+                    array_value[0] = shotNo
+                    array_value[1] = val_time_st
+                    array_value[2] = val_time_ed
+                    array_value[3] = val_time2_st
+                    array_value[4] = val_time2_ed
+                    array_value[5] = val_time_show_st
+                    array_value[6] = val_time_show_ed
+                    np.savez('value_CTS_Analysis_2', array_value)
+
+                if val == 'LoadValue2' or str.upper(val) == 'LV2':
+                    array_value = np.load('value_CTS_Analysis_2.npz')
+                    shotNo = array_value['arr_0'][0]
+                    val_time_st = array_value['arr_0'][1]
+                    val_time_ed = array_value['arr_0'][2]
+                    val_time2_st = array_value['arr_0'][3]
+                    val_time2_ed = array_value['arr_0'][4]
+                    val_time_show_st = array_value['arr_0'][5]
+                    val_time_show_ed = array_value['arr_0'][6]
 
                 else:
                     print(val)
