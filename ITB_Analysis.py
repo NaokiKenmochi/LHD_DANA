@@ -2926,7 +2926,7 @@ if __name__ == "__main__":
     #ana_findpeaks_shotarray()
     #ana_delaytime_shotarray()
     #itba = ITB_Analysis(int(ShotNo))
-    itba = ITB_Analysis(176287, 169717)#167088), 163958
+    itba = ITB_Analysis(176288, 169717)#167088), 163958
     itba.conditional_average_highK_mppk(t_st=3.5, t_ed=4.70)
     #itba.combine_files([176286, 176287, 176288], 20220113)
     #itba.ana_plot_highSP_TS(1)
