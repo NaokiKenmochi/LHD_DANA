@@ -915,7 +915,8 @@ class ITB_Analysis:
         #peaks, _ = find_peaks(data_mp_env, prominence=3.5)  #175132
         #peaks, _ = find_peaks(data_mp_env, prominence=1, distance=1000) #169702
         #peaks, _ = find_peaks(data_mp_env, prominence=1, distance=100) #175346
-        peaks, _ = find_peaks(data_mp_env, prominence=1, distance=500) #20211214-20211216, 20220113
+        #peaks, _ = find_peaks(data_mp_env, prominence=1, distance=500) #20211214-20211216, 20220113
+        peaks, _ = find_peaks(data_mp_env, prominence=1e-1, distance=300) #20211029
 
         timedata_peaks = timedata_ltd[peaks]
         if isPlot:
@@ -1132,6 +1133,7 @@ class ITB_Analysis:
 
     def conditional_average_highK_mppk(self, t_st=None, t_ed=None, arr_peak_selection=None, arr_toff=None):
         data_name_highK = 'mwrm_highK_Power3' #RADLPXI data_radhinfo = AnaData.retrieve(data_name_info, self.ShotNo, 1)
+        #data_name_highK = 'mwrm_highK_Power1' #RADLPXI data_radhinfo = AnaData.retrieve(data_name_info, self.ShotNo, 1)
         data = AnaData.retrieve(data_name_highK, self.ShotNo, 1)
         vnum = data.getValNo()
         t = data.getDimData('Time')
@@ -1234,44 +1236,111 @@ class ITB_Analysis:
         #peaks, _ = find_peaks(cond_av_highK, prominence=val_prominence_highK)#, distance=50) #20211214-20211216, 20220113
         while(num_peaks < 1 and val_prominence_highK > 0):
             peaks, _ = find_peaks(cond_av_highK, prominence=val_prominence_highK)
-            print('prominence=%.5f' % val_prominence_highK )
-            print('num_peaks=%d' % len(peaks))
+            #print('prominence=%.5f' % val_prominence_highK )
+            #print('num_peaks=%d' % len(peaks))
             val_prominence_highK -= 0.000005
             num_peaks = len(peaks)
 
-        popt_1, pcov = curve_fit(laplace_asymmetric_pdf, 1e7*buf_t_highK, cond_av_highK, p0=(cond_av_highK[0], 1, 0, cond_av_highK[find_closest(buf_t_highK, 0)], 1e-1))
-        popt_2, pcov = curve_fit(laplace_asymmetric_pdf, 1e7*buf_t_highK[:400] , cond_av_highK[:400], p0=(cond_av_highK[0], 1, 0, cond_av_highK[find_closest(buf_t_highK, 0)], 1e-1))
-        popt_3, pcov = curve_fit(laplace_asymmetric_pdf, 1e7*buf_t_highK[100:300] , cond_av_highK[100:300], p0=(cond_av_highK[0], 1, 0, cond_av_highK[find_closest(buf_t_highK, 0)], 1e-1))
-        popt_4, pcov = curve_fit(laplace_asymmetric_pdf, 1e7*buf_t_highK[150:250] , cond_av_highK[150:250], p0=(cond_av_highK[0], 1, 0, cond_av_highK[find_closest(buf_t_highK, 0)], 1e-1))
-        popt_5, pcov = curve_fit(laplace_asymmetric_pdf, 1e7*buf_t_highK[170:230] , cond_av_highK[170:230], p0=(cond_av_highK[0], 1, 0, cond_av_highK[find_closest(buf_t_highK, 0)], 1e-1))
+        array_rtime_popt_perr_highK = np.zeros((5, 17))
+        array_rtime_popt_perr_mp = np.zeros((5, 15))
 
-        popt_mp_1, pcov_mp = curve_fit(laplace_asymmetric_pdf, 1e3*buf_t_mp, cond_av_mp_env, p0=(cond_av_mp_env[0], 1, 0, cond_av_mp_env[find_closest(buf_t_mp, 0)], 1e0))
-        popt_mp_2, pcov_mp = curve_fit(laplace_asymmetric_pdf, 1e3*buf_t_mp[:400], cond_av_mp_env[:400], p0=(cond_av_mp_env[0], 1, 0, cond_av_mp_env[find_closest(buf_t_mp, 0)], 1e0))
-        popt_mp_3, pcov_mp = curve_fit(laplace_asymmetric_pdf, 1e3*buf_t_mp[100:300], cond_av_mp_env[100:300], p0=(cond_av_mp_env[0], 1, 0, cond_av_mp_env[find_closest(buf_t_mp, 0)], 1e0))
-        popt_mp_4, pcov_mp = curve_fit(laplace_asymmetric_pdf, 1e3*buf_t_mp[150:250], cond_av_mp_env[150:250], p0=(cond_av_mp_env[0], 1, 0, cond_av_mp_env[find_closest(buf_t_mp, 0)], 1e0))
-        popt_mp_5, pcov_mp = curve_fit(laplace_asymmetric_pdf, 1e3*buf_t_mp[170:230], cond_av_mp_env[170:230], p0=(cond_av_mp_env[0], 1, 0, cond_av_mp_env[find_closest(buf_t_mp, 0)], 1e0))
+        array_rtime_popt_perr_highK[:, 0] = self.ShotNo
+        array_rtime_popt_perr_mp[:, 0] = self.ShotNo
+        array_rtime_popt_perr_highK[:, 1] = t_st
+        array_rtime_popt_perr_highK[:, 2] = t_ed
+        array_rtime_popt_perr_mp[:, 1] = t_st
+        array_rtime_popt_perr_mp[:, 2] = t_ed
+        array_rtime_popt_perr_highK[:, 3] = mean_reff_a99_highK
+        array_rtime_popt_perr_highK[:, 4] = stdev_reff_a99_highK
 
+
+        #popt_1, pcov = curve_fit(laplace_asymmetric_pdf, 1e7*buf_t_highK, cond_av_highK, p0=(cond_av_highK[0], 1, 0, cond_av_highK[find_closest(buf_t_highK, 0)], 1e-1))
+        popt_1, pcov = curve_fit(laplace_asymmetric_pdf, buf_t_highK, cond_av_highK, p0=(cond_av_highK[0], 1, 0, 1e4, 1e-8))
+        perr_1 = np.sqrt(np.diag(pcov))
+        array_rtime_popt_perr_highK[0, 5:7] = [buf_t_highK[0], buf_t_highK[-1]]
+        array_rtime_popt_perr_highK[0, 7:12] = popt_1
+        array_rtime_popt_perr_highK[0, 12:] = perr_1
+        popt_2, pcov = curve_fit(laplace_asymmetric_pdf, buf_t_highK[:400] , cond_av_highK[:400], p0=(cond_av_highK[0], 1, 0, 1e4, 1e-8))
+        perr_2 = np.sqrt(np.diag(pcov))
+        array_rtime_popt_perr_highK[1, 5:7] = [buf_t_highK[0], buf_t_highK[400]]
+        array_rtime_popt_perr_highK[1, 7:12] = popt_2
+        array_rtime_popt_perr_highK[1, 12:] = perr_2
+        popt_3, pcov = curve_fit(laplace_asymmetric_pdf, buf_t_highK[100:300] , cond_av_highK[100:300], p0=(cond_av_highK[0], 1, 0, 1e4, 1e-8))
+        perr_3 = np.sqrt(np.diag(pcov))
+        array_rtime_popt_perr_highK[2, 5:7] = [buf_t_highK[100], buf_t_highK[300]]
+        array_rtime_popt_perr_highK[2, 7:12] = popt_3
+        array_rtime_popt_perr_highK[2, 12:] = perr_3
+        popt_4, pcov = curve_fit(laplace_asymmetric_pdf, buf_t_highK[150:250] , cond_av_highK[150:250], p0=(cond_av_highK[0], 1, 0, 1e4, 1e-8))
+        perr_4 = np.sqrt(np.diag(pcov))
+        array_rtime_popt_perr_highK[3, 5:7] = [buf_t_highK[150], buf_t_highK[250]]
+        array_rtime_popt_perr_highK[3, 7:12] = popt_4
+        array_rtime_popt_perr_highK[3, 12:] = perr_4
+        popt_5, pcov = curve_fit(laplace_asymmetric_pdf, buf_t_highK[170:230] , cond_av_highK[170:230], p0=(cond_av_highK[0], 1, 0, 1e4, 1e-8))
+        perr_5 = np.sqrt(np.diag(pcov))
+        array_rtime_popt_perr_highK[4, 5:7] = [buf_t_highK[170], buf_t_highK[230]]
+        array_rtime_popt_perr_highK[4, 7:12] = popt_5
+        array_rtime_popt_perr_highK[4, 12:] = perr_5
+
+        #popt_mp_1, pcov_mp = curve_fit(laplace_asymmetric_pdf, 1e3*buf_t_mp, cond_av_mp_env, p0=(cond_av_mp_env[0], 1, 0, cond_av_mp_env[find_closest(buf_t_mp, 0)], 1e-2))
+        popt_mp_1, pcov_mp = curve_fit(laplace_asymmetric_pdf, buf_t_mp, cond_av_mp_env, p0=(cond_av_mp_env[0], 1, 0, 1e4, 1e-4))
+        perr_mp_1 = np.sqrt(np.diag(pcov_mp))
+        array_rtime_popt_perr_mp[0, 3:5] = [buf_t_mp[0], buf_t_mp[-1]]
+        array_rtime_popt_perr_mp[0, 5:10] = popt_mp_1
+        array_rtime_popt_perr_mp[0, 10:] = perr_mp_1
+        popt_mp_2, pcov_mp = curve_fit(laplace_asymmetric_pdf, buf_t_mp[:400], cond_av_mp_env[:400], p0=(cond_av_mp_env[0], 1, 0, 1e4, 1e-4))
+        perr_mp_2 = np.sqrt(np.diag(pcov_mp))
+        array_rtime_popt_perr_mp[1, 3:5] = [buf_t_mp[0], buf_t_mp[400]]
+        array_rtime_popt_perr_mp[1, 5:10] = popt_mp_2
+        array_rtime_popt_perr_mp[1, 10:] = perr_mp_2
+        popt_mp_3, pcov_mp = curve_fit(laplace_asymmetric_pdf, buf_t_mp[100:300], cond_av_mp_env[100:300], p0=(cond_av_mp_env[0], 1, 0, 1e4, 1e-4))
+        perr_mp_3 = np.sqrt(np.diag(pcov_mp))
+        array_rtime_popt_perr_mp[2, 3:5] = [buf_t_mp[100], buf_t_mp[300]]
+        array_rtime_popt_perr_mp[2, 5:10] = popt_mp_3
+        array_rtime_popt_perr_mp[2, 10:] = perr_mp_3
+        popt_mp_4, pcov_mp = curve_fit(laplace_asymmetric_pdf, buf_t_mp[150:250], cond_av_mp_env[150:250], p0=(cond_av_mp_env[0], 1, 0, 1e4, 1e-4))
+        perr_mp_4 = np.sqrt(np.diag(pcov_mp))
+        array_rtime_popt_perr_mp[3, 3:5] = [buf_t_mp[150], buf_t_mp[250]]
+        array_rtime_popt_perr_mp[3, 5:10] = popt_mp_4
+        array_rtime_popt_perr_mp[3, 10:] = perr_mp_4
+        popt_mp_5, pcov_mp = curve_fit(laplace_asymmetric_pdf, buf_t_mp[170:230], cond_av_mp_env[170:230], p0=(cond_av_mp_env[0], 1, 0, 1e4, 1e-4))
+        perr_mp_5 = np.sqrt(np.diag(pcov_mp))
+        array_rtime_popt_perr_mp[4, 3:5] = [buf_t_mp[170], buf_t_mp[230]]
+        array_rtime_popt_perr_mp[4, 5:10] = popt_mp_5
+        array_rtime_popt_perr_mp[4, 10:] = perr_mp_5
+
+        filename_popt_perr_highK = f'SN_tst_ted_reffa99_reffa99err_rtime_popt_perr_highK_{self.ShotNo}'
+        filename_popt_perr_mp = f'SN_tst_ted_rtime_popt_perr_mp_{self.ShotNo}'
+        np.savetxt(filename_popt_perr_highK+'.txt', array_rtime_popt_perr_highK, delimiter=",")
+        np.savetxt(filename_popt_perr_mp+'.txt', array_rtime_popt_perr_mp, delimiter=",")
+        np.savez(filename_popt_perr_highK+'.npz', array_rtime_popt_perr_highK)
+        np.savez(filename_popt_perr_mp+'.npz', array_rtime_popt_perr_mp)
 
         #popt, pcov = curve_fit(laplace_asymmetric_pdf, buf_t_highK, cond_av_highK, p0=(1, 0, cond_av_highK[200]))
-        print(f'highK({buf_t_highK[0]:.2e}-{buf_t_highK[-1]:.2e}s): y0={popt_1[0]:.6e}, kappa={popt_1[1]:.6e}, loc={1e-7*popt_1[2]:.6e}s, scale={popt_1[3]:.6e}, b={1e-7*popt_1[4]:.6e}')
-        print(f'highK({buf_t_highK[0]:.2e}-{buf_t_highK[400]:.2e}s): y0={popt_2[0]:.6e}, kappa={popt_2[1]:.6e}, loc={1e-7*popt_2[2]:.6e}s, scale={popt_2[3]:.6e}, b={1e-7*popt_2[4]:.6e}')
-        print(f'highK({buf_t_highK[100]:.2e}-{buf_t_highK[300]:.2e}s): y0={popt_3[0]:.6e}, kappa={popt_3[1]:.6e}, loc={1e-7*popt_3[2]:.6e}s, scale={popt_3[3]:.6e}, b={1e-7*popt_3[4]:.6e}')
-        print(f'highK({buf_t_highK[150]:.2e}-{buf_t_highK[250]:.2e}s): y0={popt_4[0]:.6e}, kappa={popt_4[1]:.6e}, loc={1e-7*popt_4[2]:.6e}s, scale={popt_4[3]:.6e}, b={1e-7*popt_4[4]:.6e}')
-        print(f'highK({buf_t_highK[170]:.2e}-{buf_t_highK[230]:.2e}s): y0={popt_5[0]:.6e}, kappa={popt_5[1]:.6e}, loc={1e-7*popt_5[2]:.6e}s, scale={popt_5[3]:.6e}, b={1e-7*popt_5[4]:.6e}')
+        print(f'Snot No.:{self.ShotNo}')
+        print(f'highK({buf_t_highK[0]:.2e}-{buf_t_highK[-1]:.2e}s): y0={popt_1[0]:.6e}, kappa={popt_1[1]:.6e}, loc={popt_1[2]:.6e}s, scale={popt_1[3]:.6e}, b={popt_1[4]:.6e}, FWHM={2*np.sqrt(2*np.log(2)*(1+popt_1[1]**4)/(popt_1[3]**2*popt_1[1]**2)):.6e}s')
+        print(perr_1)
+        print(f'highK({buf_t_highK[0]:.2e}-{buf_t_highK[400]:.2e}s): y0={popt_2[0]:.6e}, kappa={popt_2[1]:.6e}, loc={popt_2[2]:.6e}s, scale={popt_2[3]:.6e}, b={popt_2[4]:.6e}, FWHM={2*np.sqrt(2*np.log(2)*(1+popt_2[1]**4)/(popt_2[3]**2*popt_2[1]**2)):.6e}s')
+        print(perr_2)
+        print(f'highK({buf_t_highK[100]:.2e}-{buf_t_highK[300]:.2e}s): y0={popt_3[0]:.6e}, kappa={popt_3[1]:.6e}, loc={popt_3[2]:.6e}s, scale={popt_3[3]:.6e}, b={popt_3[4]:.6e}, FWHM={2*np.sqrt(2*np.log(2)*(1+popt_3[1]**4)/(popt_3[3]**2*popt_3[1]**2)):.6e}s')
+        print(perr_3)
+        print(f'highK({buf_t_highK[150]:.2e}-{buf_t_highK[250]:.2e}s): y0={popt_4[0]:.6e}, kappa={popt_4[1]:.6e}, loc={popt_4[2]:.6e}s, scale={popt_4[3]:.6e}, b={popt_4[4]:.6e}, FWHM={2*np.sqrt(2*np.log(2)*(1+popt_4[1]**4)/(popt_4[3]**2*popt_4[1]**2)):.6e}s')
+        print(perr_4)
+        print(f'highK({buf_t_highK[170]:.2e}-{buf_t_highK[230]:.2e}s): y0={popt_5[0]:.6e}, kappa={popt_5[1]:.6e}, loc={popt_5[2]:.6e}s, scale={popt_5[3]:.6e}, b={popt_5[4]:.6e}, FWHM={2*np.sqrt(2*np.log(2)*(1+popt_5[1]**4)/(popt_5[3]**2*popt_5[1]**2)):.6e}s')
+        print(perr_5)
 
 
-        print(f'MP({buf_t_mp[0]:.2e}-{buf_t_mp[-1]:.2e}s): y0={popt_mp_1[0]:.6e}, kappa={popt_mp_1[1]:.6e}, loc={1e-3*popt_mp_1[2]:.6e}s, scale={popt_mp_1[3]:.6e}, b={1e-3*popt_mp_1[4]:.6e}')
-        print(f'MP({buf_t_mp[0]:.2e}-{buf_t_mp[400]:.2e}s): y0={popt_mp_2[0]:.6e}, kappa={popt_mp_2[1]:.6e}, loc={1e-3*popt_mp_2[2]:.6e}s, scale={popt_mp_2[3]:.6e}, b={1e-3*popt_mp_2[4]:.6e}')
-        print(f'MP({buf_t_mp[100]:.2e}-{buf_t_mp[300]:.2e}s): y0={popt_mp_3[0]:.6e}, kappa={popt_mp_3[1]:.6e}, loc={1e-3*popt_mp_3[2]:.6e}s, scale={popt_mp_3[3]:.6e}, b={1e-3*popt_mp_3[4]:.6e}')
-        print(f'MP({buf_t_mp[150]:.2e}-{buf_t_mp[250]:.2e}s): y0={popt_mp_4[0]:.6e}, kappa={popt_mp_4[1]:.6e}, loc={1e-3*popt_mp_4[2]:.6e}s, scale={popt_mp_4[3]:.6e}, b={1e-3*popt_mp_4[4]:.6e}')
-        print(f'MP({buf_t_mp[170]:.2e}-{buf_t_mp[230]:.2e}s): y0={popt_mp_5[0]:.6e}, kappa={popt_mp_5[1]:.6e}, loc={1e-3*popt_mp_5[2]:.6e}s, scale={popt_mp_5[3]:.6e}, b={1e-3*popt_mp_5[4]:.6e}')
+        print(f'MP({buf_t_mp[0]:.2e}-{buf_t_mp[-1]:.2e}s): y0={popt_mp_1[0]:.6e}, kappa={popt_mp_1[1]:.6e}, loc={popt_mp_1[2]:.6e}s, scale={popt_mp_1[3]:.6e}, b={popt_mp_1[4]:.6e}, FWHM={2*np.sqrt(2*np.log(2)*(1+popt_mp_1[1]**4)/(popt_mp_1[3]**2*popt_mp_1[1]**2)):.6e}s')
+        print(perr_mp_1)
+        print(f'MP({buf_t_mp[0]:.2e}-{buf_t_mp[400]:.2e}s): y0={popt_mp_2[0]:.6e}, kappa={popt_mp_2[1]:.6e}, loc={popt_mp_2[2]:.6e}s, scale={popt_mp_2[3]:.6e}, b={popt_mp_2[4]:.6e}, FWHM={2*np.sqrt(2*np.log(2)*(1+popt_mp_2[1]**4)/(popt_mp_2[3]**2*popt_mp_2[1]**2)):.6e}s')
+        print(perr_mp_2)
+        print(f'MP({buf_t_mp[100]:.2e}-{buf_t_mp[300]:.2e}s): y0={popt_mp_3[0]:.6e}, kappa={popt_mp_3[1]:.6e}, loc={popt_mp_3[2]:.6e}s, scale={popt_mp_3[3]:.6e}, b={popt_mp_3[4]:.6e}, FWHM={2*np.sqrt(2*np.log(2)*(1+popt_mp_3[1]**4)/(popt_mp_3[3]**2*popt_mp_3[1]**2)):.6e}s')
+        print(perr_mp_3)
+        print(f'MP({buf_t_mp[150]:.2e}-{buf_t_mp[250]:.2e}s): y0={popt_mp_4[0]:.6e}, kappa={popt_mp_4[1]:.6e}, loc={popt_mp_4[2]:.6e}s, scale={popt_mp_4[3]:.6e}, b={popt_mp_4[4]:.6e}, FWHM={2*np.sqrt(2*np.log(2)*(1+popt_mp_4[1]**4)/(popt_mp_4[3]**2*popt_mp_4[1]**2)):.6e}s')
+        print(perr_mp_4)
+        print(f'MP({buf_t_mp[170]:.2e}-{buf_t_mp[230]:.2e}s): y0={popt_mp_5[0]:.6e}, kappa={popt_mp_5[1]:.6e}, loc={popt_mp_5[2]:.6e}s, scale={popt_mp_5[3]:.6e}, b={popt_mp_5[4]:.6e}, FWHM={2*np.sqrt(2*np.log(2)*(1+popt_mp_5[1]**4)/(popt_mp_5[3]**2*popt_mp_5[1]**2)):.6e}s')
+        print(perr_mp_5)
 
         #print(pcov)
-        #fig = plt.figure(figsize=(12,6), dpi=150)
-        #plt.plot(buf_t_highK, 1e4*laplace_asymmetric_pdf(1e6*buf_t_highK, popt[0], popt[1], popt[2], popt[3], popt[4]))
-        #plt.plot(buf_t_highK, 1e4*laplace_asymmetric_pdf(buf_t_highK, popt[0], 1, popt[2], popt[3]))
-        #plt.plot(buf_t_highK, 1e4*cond_av_highK)
-        #plt.show()
 
         fig = plt.figure(figsize=(12,6), dpi=150)
         ax1 = fig.add_subplot(111)
@@ -1281,20 +1350,20 @@ class ITB_Analysis:
         plt.rcParams['axes.axisbelow'] = True
         b = ax2.plot(buf_t_mp, cond_av_mp, 'g-', label='mp_raw', zorder=1)
         b = ax2.plot(buf_t_mp, cond_av_mp_env, 'c-', label='mp_raw_env', zorder=1)
-        b2 = ax2.plot(buf_t_mp, laplace_asymmetric_pdf(1e3*buf_t_mp, popt_mp_1[0], popt_mp_1[1], popt_mp_1[2], popt_mp_1[3], popt_mp_1[4]), label='mp-1')
-        b2 = ax2.plot(buf_t_mp[:400], laplace_asymmetric_pdf(1e3*buf_t_mp[:400], popt_mp_2[0], popt_mp_2[1], popt_mp_2[2], popt_mp_2[3], popt_mp_2[4]), label='mp-2')
-        b2 = ax2.plot(buf_t_mp[100:300], laplace_asymmetric_pdf(1e3*buf_t_mp[100:300], popt_mp_3[0], popt_mp_3[1], popt_mp_3[2], popt_mp_3[3], popt_mp_3[4]), label='mp-3')
-        b2 = ax2.plot(buf_t_mp[150:250], laplace_asymmetric_pdf(1e3*buf_t_mp[150:250], popt_mp_4[0], popt_mp_4[1], popt_mp_4[2], popt_mp_4[3], popt_mp_4[4]), label='mp-4')
-        b2 = ax2.plot(buf_t_mp[170:230], laplace_asymmetric_pdf(1e3*buf_t_mp[170:230], popt_mp_5[0], popt_mp_5[1], popt_mp_5[2], popt_mp_5[3], popt_mp_5[4]), label='mp-5')
+        b2 = ax2.plot(buf_t_mp, laplace_asymmetric_pdf(buf_t_mp, *popt_mp_1), label='mp-1')
+        b2 = ax2.plot(buf_t_mp[:400], laplace_asymmetric_pdf(buf_t_mp[:400], *popt_mp_2), label='mp-2')
+        b2 = ax2.plot(buf_t_mp[100:300], laplace_asymmetric_pdf(buf_t_mp[100:300], *popt_mp_3), label='mp-3')
+        b2 = ax2.plot(buf_t_mp[150:250], laplace_asymmetric_pdf(buf_t_mp[150:250], *popt_mp_4), label='mp-4')
+        b2 = ax2.plot(buf_t_mp[170:230], laplace_asymmetric_pdf(buf_t_mp[170:230], *popt_mp_5), label='mp-5')
         label_radh = "ECE(rho=" + str(r[i_ch]) + ")"
         c = ax1.plot(buf_t_radh, cond_av_radh[:, i_ch], 'r-', label=label_radh, zorder=2)
         a = ax2.plot(buf_t_highK, 1e4*cond_av_highK, 'b-', label='highK', zorder=3)
         a2 = ax2.plot(buf_t_highK[peaks], 1e4*cond_av_highK[peaks], "og")
-        a3 = ax2.plot(buf_t_highK, 1e4*laplace_asymmetric_pdf(1e7*buf_t_highK, popt_1[0], popt_1[1], popt_1[2], popt_1[3], popt_1[4]), label='1')
-        a3 = ax2.plot(buf_t_highK[:400], 1e4*laplace_asymmetric_pdf(1e7*buf_t_highK[:400], popt_2[0], popt_2[1], popt_2[2], popt_2[3], popt_2[4]), label='2')
-        a3 = ax2.plot(buf_t_highK[100:300], 1e4*laplace_asymmetric_pdf(1e7*buf_t_highK[100:300], popt_3[0], popt_3[1], popt_3[2], popt_3[3], popt_3[4]), label='3')
-        a3 = ax2.plot(buf_t_highK[150:250], 1e4*laplace_asymmetric_pdf(1e7*buf_t_highK[150:250], popt_4[0], popt_4[1], popt_4[2], popt_4[3], popt_4[4]), label='4')
-        a3 = ax2.plot(buf_t_highK[170:230], 1e4*laplace_asymmetric_pdf(1e7*buf_t_highK[170:230], popt_5[0], popt_5[1], popt_5[2], popt_5[3], popt_5[4]), label='5')
+        a3 = ax2.plot(buf_t_highK, 1e4*laplace_asymmetric_pdf(buf_t_highK, *popt_1), label='highK-1')
+        a3 = ax2.plot(buf_t_highK[:400], 1e4*laplace_asymmetric_pdf(buf_t_highK[:400], *popt_2), label='highK-2')
+        a3 = ax2.plot(buf_t_highK[100:300], 1e4*laplace_asymmetric_pdf(buf_t_highK[100:300], *popt_3), label='highK-3')
+        a3 = ax2.plot(buf_t_highK[150:250], 1e4*laplace_asymmetric_pdf(buf_t_highK[150:250], *popt_4), label='highK-4')
+        a3 = ax2.plot(buf_t_highK[170:230], 1e4*laplace_asymmetric_pdf(buf_t_highK[170:230], *popt_5), label='highK-5')
         if len(peaks) == 0:
             plt.title('reff/a99(highK)=%.4f+-%.4f, t_peak_highK=%.4fms(prominence=%.6f), %.2fs - %.2fs, conditional av.(%d points) #%d' % (mean_reff_a99_highK, stdev_reff_a99_highK, 1e3*buf_t_highK[peaks], val_prominence_highK, t_st, t_ed, len(timedata_peaks_ltd), self.ShotNo), loc='right')
         else:
@@ -1304,11 +1373,38 @@ class ITB_Analysis:
         ax1.set_xlabel('Time [sec]')
         ax2.set_ylabel('b_dot_tilda [T/s]', rotation=270)
         ax1.set_ylabel('Intensity of ECE [a.u.]', labelpad=15)
+        ax1.set_xlim(-0.002, 0.002)
         fig.legend(loc=1, bbox_to_anchor=(1, 1), bbox_transform=ax1.transAxes)
+        filename_popt_perr_highK = f'radh_highK_mp_laplace_{self.ShotNo}.png'
+        plt.savefig(filename_popt_perr_highK)
         plt.show()
 
 
         return buf_highK, buf_mp, buf_radh, buf_t_highK, buf_t_mp, buf_t_radh, timedata_peaks_ltd, r, i_ch
+
+    def combine_files(self, array_ShotNos, YYYYMMDD):
+        #array_rtime_popt_perr_highK = np.zeros((5, 17))
+        #array_rtime_popt_perr_mp = np.zeros((5, 15))
+        array3D_highK = np.zeros((len(array_ShotNos), 5, 17))
+        array3D_mp = np.zeros((len(array_ShotNos), 5, 15))
+        for i in range(len(array_ShotNos)):
+            filename_popt_perr_highK = f'SN_tst_ted_reffa99_reffa99err_rtime_popt_perr_highK_{array_ShotNos[i]}.npz'
+            filename_popt_perr_mp = f'SN_tst_ted_rtime_popt_perr_mp_{array_ShotNos[i]}.npz'
+            array_rtime_popt_perr_highK = np.load(filename_popt_perr_highK)['arr_0']
+            array_rtime_popt_perr_mp = np.load(filename_popt_perr_mp)['arr_0']
+            array3D_highK[i, :, :] = array_rtime_popt_perr_highK
+            array3D_mp[i, :, :] = array_rtime_popt_perr_mp
+
+        np.savetxt(f'SN_tst_ted_reffa99_reffa99err_rtime_popt_perr_highK_{YYYYMMDD}_1.txt', array3D_highK[:, 0, ], delimiter=',')
+        np.savetxt(f'SN_tst_ted_reffa99_reffa99err_rtime_popt_perr_mp_{YYYYMMDD}_1.txt', array3D_mp[:, 0, ], delimiter=',')
+        np.savetxt(f'SN_tst_ted_reffa99_reffa99err_rtime_popt_perr_highK_{YYYYMMDD}_2.txt', array3D_highK[:, 1, ], delimiter=',')
+        np.savetxt(f'SN_tst_ted_reffa99_reffa99err_rtime_popt_perr_mp_{YYYYMMDD}_2.txt', array3D_mp[:, 1, ], delimiter=',')
+        np.savetxt(f'SN_tst_ted_reffa99_reffa99err_rtime_popt_perr_highK_{YYYYMMDD}_3.txt', array3D_highK[:, 2, ], delimiter=',')
+        np.savetxt(f'SN_tst_ted_reffa99_reffa99err_rtime_popt_perr_mp_{YYYYMMDD}_3.txt', array3D_mp[:, 2, ], delimiter=',')
+        np.savetxt(f'SN_tst_ted_reffa99_reffa99err_rtime_popt_perr_highK_{YYYYMMDD}_4.txt', array3D_highK[:, 3, ], delimiter=',')
+        np.savetxt(f'SN_tst_ted_reffa99_reffa99err_rtime_popt_perr_mp_{YYYYMMDD}_4.txt', array3D_mp[:, 3, ], delimiter=',')
+        np.savetxt(f'SN_tst_ted_reffa99_reffa99err_rtime_popt_perr_highK_{YYYYMMDD}_5.txt', array3D_highK[:, 4, ], delimiter=',')
+        np.savetxt(f'SN_tst_ted_reffa99_reffa99err_rtime_popt_perr_mp_{YYYYMMDD}_5.txt', array3D_mp[:, 4, ], delimiter=',')
 
     def conditional_average_highK(self, t_st=None, t_ed=None, arr_peak_selection=None, arr_toff=None):
         data_name_highK = 'mwrm_highK_Power3' #RADLPXI data_radhinfo = AnaData.retrieve(data_name_info, self.ShotNo, 1)
@@ -2784,15 +2880,22 @@ def test_laplace_asymmetric():
     plt.legend()
     plt.show()
 
-
-def laplace_asymmetric_pdf(x, y0, kappa, loc, scale, b):
+def laplace_asymmetric_pdf_0(x, y0, kappa, loc, scale, b):
     kapinv = 1/kappa
     lPx = scale * (x - loc) * np.where(x >= loc, -kappa, kapinv) / b
     lPx -= np.log(kappa+kapinv)
 
-    return np.exp(lPx) * scale / (2*b) + y0
+    return np.exp(lPx) * scale / b + y0
 
-def laplace_asymmetric_pdf_double(x, y0, kappa, loc, scale, b):
+
+def laplace_asymmetric_pdf(x, y0, kappa, loc, scale, b):
+    kapinv = 1/kappa
+    lPx = scale * (x - loc) * np.where(x >= loc, -kappa, kapinv)
+    lPx -= np.log(kappa+kapinv)
+
+    return b * np.exp(lPx) * scale + y0
+
+def laplace_asymmetric_pdf_double(x, y0, kappa, loc, scale, b): 
     kapinv = 1/kappa
     lPx = scale * (x - loc) * np.where(x >= loc, -kappa, kapinv) / b
     lPx -= np.log(kappa+kapinv)
@@ -2823,7 +2926,9 @@ if __name__ == "__main__":
     #ana_findpeaks_shotarray()
     #ana_delaytime_shotarray()
     #itba = ITB_Analysis(int(ShotNo))
-    itba = ITB_Analysis(176294, 169717)#167088), 163958
+    itba = ITB_Analysis(176287, 169717)#167088), 163958
+    itba.conditional_average_highK_mppk(t_st=3.5, t_ed=4.70)
+    #itba.combine_files([176286, 176287, 176288], 20220113)
     #itba.ana_plot_highSP_TS(1)
     #itba.get_ne(target_t=4.4, target_r=0.2131075)
     #itba.ana_plot_ece()
@@ -2833,7 +2938,6 @@ if __name__ == "__main__":
     #itba.plot_2TS()
     #itba.ana_plot_pci_test()
     #itba.conditional_average_highK(t_st=4.3, t_ed=4.6)
-    itba.conditional_average_highK_mppk(t_st=3.5, t_ed=4.70)
     #itba.combine_shots_data()
     #itba.findpeaks_radh(t_st=4.4, t_ed=4.6, i_ch=26)
     #itba.findpeaks_mp(t_st=3.7, t_ed=3.75, i_ch=0)
