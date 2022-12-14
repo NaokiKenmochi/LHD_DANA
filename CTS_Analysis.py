@@ -5,6 +5,7 @@ import sys
 from nifs.voltdata import *
 from nifs.timedata import *
 from matplotlib.gridspec import GridSpec
+from multiprocessing import Pool
 import numpy as np
 import matplotlib.pyplot as plt
 import scipy.signal as sig
@@ -175,7 +176,8 @@ class CTS_Analysis:
         idx_ed = self.idx_ed
         #idx_st = 0
         #idx_ed = 900000000
-        freq_LO = 74e9
+        #freq_LO = 74e9		#For 77GHz
+        freq_LO = 151e9		#For 154GHz
 
         y = voltdata[idx_st:idx_ed]
         x = timedata[idx_st:idx_ed]
@@ -213,6 +215,10 @@ class CTS_Analysis:
             plt.ylabel("PSD [a.u.]")
             plt.yscale('log')
             plt.show()
+            #filename = "CTSfosc1_spectrum_" + str(shotNo) + ".txt"
+            #np.savetxt(filename, np.mean(Zxx[:, idx_time_st:idx_time_ed], axis=1))
+            #filename = "CTSfosc1_frequency_GHz_" + str(shotNo) + ".txt"
+            #np.savetxt(filename, f)
 
             coef_vmax = float(input('Enter coef_vmax: '))
             # vmax = 0.05*np.max(Zxx)
@@ -448,11 +454,11 @@ class CTS_Analysis:
             spectrum = np.mean(Zxx, axis=1)
             f += freq_LO
             f /= 1e9
-            filename = "CTSfosc1_digi_noise_" + str(shotNo)
+            filename = "Data/CTSfosc1_digi_noise_" + str(shotNo)
             np.savez_compressed(filename, f, t, spectrum)
 
         else:
-            filename = "CTSfosc1_digi_noise_" + str(shotNo) + ".npz"
+            filename = "Data/CTSfosc1_digi_noise_" + str(shotNo) + ".npz"
             npz_comp = np.load(filename)
             f = npz_comp['arr_0']
             t = npz_comp['arr_1']
@@ -630,15 +636,53 @@ class CTS_Analysis:
             except Exception as e:
                 print(e)
 
+    def read_mwscat(self, i_ch):
+        shot_num = 181857
+        if i_ch < 24:
+            digi_name = "mwscat"
+            ch_num = i_ch + 9
+        elif i_ch >= 24:
+            digi_name = "mwscat2"
+            ch_num = i_ch + 1 - 24
+        sig = RawData.retrieve(digi_name, int(shot_num), 1, ch_num)
+        sig_volt = sig.params['RangeHigh'] * 2. / 2 ** sig.params['Resolution(bit)']
+        sig_voltdata = sig.get_val() * sig_volt
+        print(i_ch)
+        plt.plot(sig_voltdata)
+        plt.show()
+        #return sig_voltdata
+
+    def multiplocess_mwscat(self):
+        with Pool(32) as p:
+            #arr = p.map(self.read_mwscat, range(32))
+            p.map(self.read_mwscat, range(32))
+
+
+        #return arr
+
+    def plot_mwscat(self):
+        shot_num = 179949
+        for i in range(32):
+            if i < 24:
+                digi_name = "mwscat"
+                ch_num = i + 9
+            elif i >= 24:
+                digi_name = "mwscat2"
+                ch_num = i + 1 - 24
+            sig = RawData.retrieve(digi_name, int(shot_num), 1, ch_num)
+            sig_volt = sig.params['RangeHigh'] * 2. / 2 ** sig.params['Resolution(bit)']
+            sig_voltdata = sig.get_val() * sig_volt
+            print(i)
+
 def getNearestIndex(list, num):
     """
-    概要: リストからある値に最も近い値を返却する関数
-    @param list: データ配列
-    @param num: 対象値
-    @return 対象値に最も近い値
+    概要: リストからある値に    最も近い値を返却する関数
+    @param list:     データ配列
+    @param num: 対    象値
+    @return 対象値に最    も近い値
     """
 
-    # リスト要素と対象値の差分を計算し最小値のインデックスを取得
+    # リスト要素と対象値の差    分を計算し最小値のインデックスを取得
     return np.abs(np.asarray(list) - num).argmin()
 
 if __name__ == "__main__":
@@ -646,6 +690,8 @@ if __name__ == "__main__":
     ctsa = CTS_Analysis()
     #ctsa.stft(shotNo=161898, val_time_st=3.401, val_time_ed=3.404, val_time2_st=3.405, val_time2_ed=3.408, isLocal=True)
     ctsa.interactive_analysis()
+    #ctsa.multiplocess_mwscat()
+    #ctsa.plot_mwscat()
     #ctsa.load_spectrum(164452)
     #ctsa.load_spectrums()
     #ctsa.get_digitizer_noise(isLoad=True)
