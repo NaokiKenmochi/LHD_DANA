@@ -5,8 +5,10 @@ from nifs.timedata import *
 from matplotlib.gridspec import GridSpec
 from ftplib import FTP
 from scipy import fftpack
+from scipy.interpolate import interp1d
 from scipy.signal import find_peaks
 from scipy.optimize import curve_fit
+from scipy.signal import convolve2d
 from scipy import signal
 import scipy.signal as sig
 import numpy as np
@@ -15,7 +17,7 @@ import matplotlib
 import matplotlib.pyplot as plt
 import time
 import statistics
-import pandas as pd
+#import pandas as pd
 from matplotlib.colors import LogNorm
 from decimal import Decimal
 #from matplotlib.animation import ArtistAnimation
@@ -443,6 +445,288 @@ class ITB_Analysis:
         plt.show()
         plt.close()
 
+    def plot_HSTS(self):
+        #hs_thomson_buf = eg.load('high_time_res_thomson/high_time_res_thomson_s' + SN + '.dat')
+        hs_thomson = AnaData.retrieve('high_time_res_ts_model_fit', self.ShotNo, 1)
+        #hs_thomson_buf = eg.load('high_time_res_thomson/high_time_res_thomson_s' + SN + '_v2.dat')
+        #tsmap_calib = eg.load('tsmap_calib/tsmap_calib@' + SN + '.txt')
+        tsmap_calib = AnaData.retrieve('tsmap_calib', self.ShotNo, 1)
+        arr_reffa99_TS = tsmap_calib.getValData('reff/a99')
+        #Te = data.getValData('Te')
+        #dTe = data.getValData('dTe')
+        #ne = data.getValData('ne_calFIR')
+        #dne = data.getValData('dne_calFIR')
+        #Te_fit = data.getValData('Te_fit')
+        #ne_fit = data.getValData('ne_fit')
+        arr_R_TS = tsmap_calib.getDimData('R')
+        i_time=43
+        print(tsmap_calib.getDimData('Time')[i_time])
+        arr_reff_HSTS = arr_reffa99_TS[i_time, find_closest(arr_R_TS, hs_thomson.getDimData('R'))]
+        #tsmap_smooth = tsmap_smooth_buf.sortby('reff/a99')
+        kernel = np.full((5,5), 1/25) #default
+        #kernel = np.full((3,3), 1/9)
+        #kernel = np.full((1,1), 1/1)
+        #kernel = np.full((2,2), 1/4)
+        #kernel = np.full((3,2), 1/6)
+        #data_HSTS_filtered = apply_kernel(normalize_all_columns_np(hs_thomson.getValData('Te')), kernel)
+        col = 40
+        data_HSTS_filtered = apply_kernel(normalize_all_columns_np(delete_column(hs_thomson.getValData('Te'), col)), kernel)
+        index = col
+        arr_reff_HSTS_deleted = np.delete(arr_reff_HSTS, index)
+
+        #arr_R_TS = np.array(tsmap_calib['R'])
+        #arr_reffa99_TS = np.array(tsmap_calib['reff/a99'].isel(Time=i_time))
+        #plt.imshow(hs_thomson['Te'], vmax=10)
+        #plt.pcolormesh(hs_thomson.getDimData('Time'), hs_thomson.getDimData('R'), hs_thomson.getValData('Te').T, cmap='jet', vmin=0, vmax=6)
+        #plt.pcolormesh(hs_thomson.getDimData('Time'), hs_thomson.getDimData('R'), np.array(normalize_all_columns_np(hs_thomson.getValData('Te'))).T, cmap='jet', vmin=0, vmax=1)
+        #plt.pcolormesh(hs_thomson.getDimData('Time'), hs_thomson.getDimData('R'), np.array(normalize_all_columns_np(data_HSTS_filtered)).T, cmap='jet', vmin=0, vmax=1)
+        #plt.pcolormesh(hs_thomson.getDimData('Time'), hs_thomson.getDimData('R'), np.array(data_HSTS_filtered).T, cmap='jet')
+        #plt.pcolormesh(hs_thomson.getDimData('Time'), arr_reff_HSTS, np.array(data_HSTS_filtered).T, cmap='jet')
+        plt.pcolormesh(hs_thomson.getDimData('Time'), arr_reff_HSTS_deleted, np.array(data_HSTS_filtered).T, cmap='jet')
+        #plt.pcolormesh(hs_thomson.getDimData('Time'), arr_reff_HSTS, np.array(normalize_all_columns_np(hs_thomson.getValData('Te'))).T, cmap='jet')
+        plt.tick_params(which='both', axis='both', right=True, top=True, left=True, bottom=True, labelsize=12)
+        #plt.title('SN' + str(self.ShotNo))
+        plt.title('SN' + str(self.ShotNo) + ', kernel:' + str(kernel.shape) )
+        plt.xlabel('Time [sec]', fontsize=15)
+        #plt.ylabel('R [m]', fontsize=15)
+        plt.ylabel('$r_{eff}/a_{99}$', fontsize=15)
+        cbar = plt.colorbar(pad=0.01)
+        cbar.ax.get_yaxis().labelpad = 19
+        cbar.set_label('$T_e$ [keV]', rotation=270, fontsize=15)
+        filename = 'HSTS_reff_filtered_normalized_%d' % (self.ShotNo)
+        plt.savefig(filename)
+        #plt.show()
+        plt.close()
+
+        '''
+        kernel = np.full((5,5), 1/25) #default
+        #kernel = np.full((7,7), 1/49)
+        #kernel = np.full((3,5), 1/15)
+        #kernel = np.full((1,1), 1/1)
+        #hs_thomson = hs_thomson_buf#.sortby('R')
+        arr_all_buf = np.delete(np.array(hs_thomson['Te']), [2,3,40,58,59,65,66,67,68,69,70], 1)
+        arr_all_dTe_buf = np.delete(np.array(hs_thomson['dTe']), [2,3,40,58,59,65,66,67,68,69,70], 1)
+        #arr_all_dTe_buf = np.delete(np.array(hs_thomson['dne']), [2,3,40,58,59,65,66,67,68,69,70], 1)/1e19
+        arr_R = np.delete(np.array(hs_thomson['R']), [2,3,40,58,59,65,66,67,68,69,70], 0)
+        #arr_all_buf = np.delete(np.array(hs_thomson['Te']), [0], 1)
+        #arr_all_buf = np.delete(np.array(hs_thomson['ne']), [0], 1)/1e19
+        #arr_R = np.delete(np.array(hs_thomson['R']), [0], 0)
+        arr_all = cv2.filter2D(arr_all_buf, -1, kernel)
+        arr_all_dTe = arr_all_dTe_buf
+        #arr_all_dTe = cv2.filter2D(arr_all_dTe_buf, -1, kernel)
+        arr_dT = arr_all[:,1:] - arr_all[:,:-1]#np.array(arr2) - np.array(arr1)
+        arr_dTdt = arr_all[1:,:] - arr_all[:-1,:]#np.array(arr2) - np.array(arr1)
+        arr_dR = arr_R[1:] - arr_R[:-1]
+
+        arr_reff_HSTS = arr_reffa99_TS[find_closest(arr_R_TS, arr_R)]
+        arr_reff_HSTS -= 0.05
+
+        fig = plt.figure(figsize=(8,3), dpi=300)
+        plt.rcParams['font.family'] = 'sans-serif'  # 使用するフォント
+        plt.rcParams['xtick.direction'] = 'in'  # x軸の目盛線が内向き('in')か外向き('out')か双方向か('inout')
+        plt.rcParams['ytick.direction'] = 'in'  # y軸の目盛線が内向き('in')か外向き('out')か双方向か('inout')
+        plt.rcParams["xtick.minor.visible"] = True  # x軸補助目盛りの追加
+        plt.rcParams["ytick.minor.visible"] = True  # y軸補助目盛りの追加
+
+        # Figureと3DAxeS
+        fig = plt.figure(figsize=(8, 8), dpi=150)
+        ax = fig.add_subplot(111, projection="3d")
+        '''
+
+        '''
+        x = 4.398907
+        y = np.linspace(-1, 1, 11)
+        z = np.linspace(0, 7, 11)
+        Y, Z = np.meshgrid(y, z)
+        X = np.array([x] * Y.shape[0])
+        ax.plot_surface(X, Y, Z, alpha=0.3, color='red')
+        x = 4.399857
+        X = np.array([x] * Y.shape[0])
+        ax.plot_surface(X, Y, Z, alpha=0.3, color='blue')
+        '''
+
+        '''
+        # 軸ラベルを設定
+        ax.set_xlabel("Time [s]", size=16)
+        ax.set_ylabel("$r_{eff}/a_{99}$", size=16)
+        ax.set_zlabel("$T_e$ [keV]", size=16)
+
+        X, Y = np.meshgrid(hs_thomson['Time'][:-2], arr_reff_HSTS)
+
+        # Normalize the colors based on Z value
+        norm = plt.Normalize(arr_all[:-2,:].T.min(), arr_all[:-2,:].T.max())
+        colors = cm.jet(norm(arr_all[:-2,:].T))
+        #norm = plt.Normalize(arr_all[:-2,:].min(), arr_all[:-2,:].max())
+        #colors = cm.jet(norm(arr_all[:-2,:]))
+        ax = plt.axes(projection='3d')
+        #surf = ax.plot_surface(X, Y, arr_all[:-2,:].T, shade=False, facecolors=colors, rstride=100, cstride=5)
+        #surf = ax.plot_surface(X, Y, arr_all[:-2,:].T, shade=False, facecolors=colors, rstride=5, cstride=5)
+        #surf = ax.plot_surface(Y, X, arr_all[:-2,:].T, shade=False, facecolors=colors, rstride=100, cstride=1)
+        #surf.set_facecolor((0, 0, 0, 0))
+        # 曲面を描画
+        #ax.plot_wireframe(X, Y, arr_all[:-2,:].T, rstride=0, cstride=10)
+        #ax.plot_surface(X, Y, arr_all[:-2,:].T, cmap="jet")
+        ax.plot_surface(X, Y, 0.77*arr_all[:-2,:].T, cmap="jet")    #温度表示
+        ax.set_zlim(0, 5)
+
+        #plt.savefig("HSTS.svg")
+        plt.show()
+
+        #plt.pcolormesh(hs_thomson['Time'], hs_thomson['R'], arr_all.T, cmap='jet', vmin=0, vmax=6)
+        #plt.pcolormesh(hs_thomson['Time'], arr_R, arr_all.T, cmap='jet', vmin=0, vmax=6)
+        plt.pcolormesh(hs_thomson['Time'], arr_reff_HSTS, arr_all.T, cmap='jet', vmin=0, vmax=10)
+        #plt.vlines(4.398907, -1, 1, colors='red')
+        #plt.vlines(4.399857, -1, 1, colors='blue')
+        plt.title('SN' + self.ShotNo, loc='right')
+        plt.xlabel('Time [sec]')
+        plt.ylim(-1, 1)
+        #plt.ylabel('R [m]')
+        plt.ylabel('$r_{eff}/a_{99}$', fontsize=15)
+        #plt.ylim(2.9, 4.50)
+        cbar = plt.colorbar(pad=0.01)
+        cbar.ax.get_yaxis().labelpad = 15
+        cbar.set_label('$T_e$ [keV]', rotation=270)
+        plt.show()
+        '''
+
+        '''
+        fig = plt.figure(figsize=(8,3), dpi=150)
+        #plt.pcolormesh(hs_thomson['Time'], hs_thomson['R'], arr_all.T, cmap='jet', vmin=0, vmax=6)
+        #plt.pcolormesh(hs_thomson['Time'], arr_R, arr_all.T, cmap='jet', vmin=0, vmax=6)
+        plt.pcolormesh(hs_thomson['Time'][1:], arr_reff_HSTS, arr_dTdt.T, cmap='bwr', vmin=-0.2, vmax=0.2)
+        plt.title('SN' + self.ShotNo, loc='right')
+        plt.xlabel('Time [sec]')
+        #plt.ylabel('R [m]')
+        plt.ylabel('reff/a99 [m]')
+        #plt.ylim(2.9, 4.50)
+        cbar = plt.colorbar()
+        #cbar.set_label('dTe [keV]', rotation=270)
+        plt.show()
+        '''
+
+
+        '''
+        fig = plt.figure(figsize=(8,3), dpi=150)
+        #arr1 = (hs_thomson['Te'][:,1:])
+        #arr2 = hs_thomson['Te'][:,:-1]
+        arr_dR_s = np.squeeze(arr_dR)
+        arr_dTedR = arr_dT/arr_dR_s
+        #plt.pcolormesh(hs_thomson['Time'], arr_R[1:], (arr_dTedR).T, cmap='bwr', vmin=-25, vmax=25)
+        plt.pcolormesh(hs_thomson['Time'], arr_reff_HSTS[1:], (arr_dTedR).T, cmap='bwr', vmin=-35, vmax=35)
+        #plt.pcolormesh(arr.T, cmap='bwr', vmin=-1.0, vmax=1.0)
+        plt.title('SN' + self.ShotNo, loc='right')
+        plt.xlabel('Time [sec]')
+        #plt.ylabel('R [m]')
+        plt.ylabel('$r_{eff}/a_{99}$', fontsize=15)
+        plt.ylim(-1, 1)
+        #plt.ylim(2.9, 4.50)
+        plt.tick_params(which='both', axis='both', right=True, top=True, left=True, bottom=True, labelsize=12)
+        cbar = plt.colorbar(pad=0.01)
+        cbar.ax.get_yaxis().labelpad = 15
+        cbar.set_label('$dT_e/dR$ [keV/m]', rotation=270)
+        plt.show()
+
+        #plt.plot(hs_thomson['Time'], arr_all[:,28])
+        #plt.show()
+        #plt.plot(hs_thomson['Time'], np.abs(arr[:,38]), 'o')
+        #plt.plot(hs_thomson['Time'], np.abs(arr[:,35:39]), 'o')
+        arr_dR_s = np.squeeze(arr_dR)
+        arr_dTedR = np.abs(arr_dT/arr_dR_s)
+        fig = plt.figure(figsize=(8,2), dpi=150)
+        i_position = 29#28
+        label='reff/a99= ' + str(arr_reff_HSTS[i_position])[:]
+        plt.plot(hs_thomson['Time'], np.abs(arr_dTedR[:,i_position]), 'bo', label=label)
+        i_position = 24#23
+        #print(arr1_R[i_position])
+        label='reff/a99=' + str(arr_reff_HSTS[i_position])[:-12]
+        plt.plot(hs_thomson['Time'], np.abs(arr_dTedR[:,i_position]), 'ro', label=label)
+        plt.tick_params(which='both', axis='both', right=True, top=True, left=True, bottom=True, labelsize=12)
+        plt.xlim(4.398787, 4.403755)
+        plt.ylim(0, 20)
+        #plt.ylim(0,1)
+        plt.title('SN' + self.ShotNo, loc='right')
+        plt.xlabel('Time [sec]', fontsize=16)
+        plt.ylabel('dTe/dR [keV/m]')
+        plt.legend()
+        plt.show()
+        '''
+
+        '''
+        #fig = plt.figure(figsize=(3,1.5), dpi=150)
+        fig = plt.figure(figsize=(5,2), dpi=150)
+        #plt.errorbar(arr_reff_HSTS, arr_all[2, :], yerr=arr_all_dTe[2, :], capsize=5, fmt='o')
+        #plt.errorbar(arr_reff_HSTS, arr_all[21, :], yerr=arr_all_dTe[21, :],capsize=5,  fmt='o')
+        i_time = 2
+        #print(arr1_R[i_position])
+        label='t=' + str(np.array(hs_thomson['Time'][i_time])) + 's'
+        plt.fill_between(arr_reff_HSTS, arr_all[i_time, :]-arr_all_dTe[i_time, :], arr_all[i_time, :]+arr_all_dTe[i_time, :], alpha=0.5, color='green', edgecolor='white')
+        plt.plot(arr_reff_HSTS, arr_all[i_time, :], '-', label=label, linewidth=1, color='green')
+        arr_reff_data_err = np.vstack([np.vstack([arr_reff_HSTS, arr_all[i_time, :]]), arr_all_dTe[i_time, :]]).T
+        filename = 'HSTS_reff_Te_dTe_SN' +  self.ShotNo+ label + ".txt"
+        np.savetxt(filename, arr_reff_data_err)
+        i_time = 21
+        label='t=' + str(np.array(hs_thomson['Time'][i_time])) + 's'
+        plt.fill_between(arr_reff_HSTS, arr_all[i_time, :]-arr_all_dTe[i_time, :], arr_all[i_time, :]+arr_all_dTe[i_time, :], alpha=0.5, color='black', edgecolor='white')
+        plt.plot(arr_reff_HSTS, arr_all[i_time, :], '-', label=label, linewidth=1, color='black')
+        filename = 'HSTS_reff_Te_dTe_SN' +  self.ShotNo+ label + ".txt"
+        arr_reff_data_err = np.vstack([np.vstack([arr_reff_HSTS, arr_all[i_time, :]]), arr_all_dTe[i_time, :]]).T
+        np.savetxt(filename, arr_reff_data_err)
+        plt.tick_params(which='both', axis='both', right=True, top=True, left=True, bottom=True, labelsize=8)
+        #plt.plot(hs_thomson['Time'], arr_all[:, 13:15], '-')
+        plt.legend(fontsize=8)
+        plt.ylim(0, 6)
+        #plt.xlim(0, 1.2)
+        plt.xlim(0, 1.0)
+        plt.xlabel('$r_{eff}/a_{99}$')
+        plt.ylabel('$T_e [keV]$')
+        plt.title('SN' + self.ShotNo, loc='right')
+        plt.show()
+        #plt.plot(hs_thomson['R'], hs_thomson['Te'].sel(Time=4.498876, method='nearest'))
+        #plt.show()
+        '''
+
+        '''
+        arr_dR_s = np.squeeze(arr_dR)
+        arr_dTedR = np.abs(arr_dT/arr_dR_s)
+        fig = plt.figure(figsize=(3,2), dpi=150)
+        i_time =2
+        label='t=' + str(np.array(hs_thomson['Time'][i_time])) + 's'
+        plt.plot(np.abs(arr_reff_HSTS[1:]), arr_dTedR[i_time, :], 'ro', label=label, markersize=3)
+        i_time = 21
+        label='t=' + str(np.array(hs_thomson['Time'][i_time])) + 's'
+        plt.plot(np.abs(arr_reff_HSTS[1:]), arr_dTedR[i_time, :], 'bo', label=label, markersize=3)
+        plt.tick_params(which='both', axis='both', right=True, top=True, left=True, bottom=True, labelsize=8)
+        #plt.plot(hs_thomson['Time'], arr_all[:, 13:15], '-')
+        plt.legend(fontsize=7)
+        plt.ylim(0, 35)
+        plt.xlim(0, 1.2)
+        plt.xlabel('$r_{eff}/a_{99}$')
+        plt.ylabel('$dT_e/dR [keV/m]$')
+        plt.title('SN' + self.ShotNo, loc='right')
+        plt.show()
+        #plt.plot(hs_thomson['R'], hs_thomson['Te'].sel(Time=4.498876, method='nearest'))
+        #plt.show()
+        '''
+
+        '''
+        thomson_slice = hs_thomson.sel(R=3.973)
+        plt.plot(thomson_slice['Time'],thomson_slice['Te'])
+        plt.show()
+
+        thomson_slice_av = hs_thomson.sel(R=slice(3.802, 3.973))
+        plt.plot(thomson_slice_av['Time'],thomson_slice_av['Te'].median(dim='R'))
+        plt.show()
+        '''
+
+        '''
+        arr_dR_s = np.squeeze(arr_dR)
+        arr_dTedR = np.abs(arr_dT/arr_dR_s)
+        plt.plot(hs_thomson['Time'], np.max(arr_dTedR[:, :], axis=1), 'ro')
+        plt.plot(hs_thomson['Time'], np.abs(np.min(arr_dTedR[:, :], axis=1)), 'bo')
+        #plt.xlim(3.3, 5.3)
+        plt.show()
+        '''
+
     def ana_plot_highSP_TS(self, arr_time):
         plt.clf()
         f, axarr = plt.subplots(3, 4, gridspec_kw={'wspace': 0, 'hspace': 0})
@@ -452,7 +736,8 @@ class ITB_Analysis:
             ax.set_xticklabels([])
             ax.set_yticklabels([])
 
-        data = AnaData.retrieve('high_time_res_thomson', self.ShotNo, 1)
+        data = AnaData.retrieve('high_time_res_ts_model_fit', self.ShotNo, 1)
+        #data = AnaData.retrieve('high_time_res_thomson', self.ShotNo, 1)
 
         # 次元 'R' のデータを取得 (要素数137 の一次元配列(numpy.Array)が返ってくる)
         r = data.getDimData('R')
@@ -466,21 +751,21 @@ class ITB_Analysis:
 
         # 次元 'Time' のデータを取得 (要素数96 の一次元配列(numpy.Array)が返ってくる)
         t = data.getDimData('Time')
-        t_mse = data_mse.getDimData('t')
+        #t_mse = data_mse.getDimData('t')
 
         # 変数 'Te' のデータを取得 (要素数 136x96 の二次元配列(numpy.Array)が返ってくる)
         reff = data.getValData('reff/a99')
-        reff_mse = data_mse.getValData('reff/a99')
+        #reff_mse = data_mse.getValData('reff/a99')
         #Te = data.getValData('Te')
         #dTe = data.getValData('dTe')
         #ne = data.getValData('ne_calFIR')
         #dne = data.getValData('dne_calFIR')
         Te_fit = data.getValData('Te_fit')
         ne_fit = data.getValData('ne_fit')
-        iota = data_mse.getValData('iota')
-        iota_vac = data_mse.getValData('iota_vac')
-        iota_data_ip = data_mse.getValData('iota_data_ip')
-        iota_data_error_ip = data_mse.getValData('iota_data_error_ip')
+        #iota = data_mse.getValData('iota')
+        #iota_vac = data_mse.getValData('iota_vac')
+        #iota_data_ip = data_mse.getValData('iota_data_ip')
+        #iota_data_error_ip = data_mse.getValData('iota_data_error_ip')
 
         # 各時刻毎の R 対 Te のデータをプロット
 
@@ -490,7 +775,7 @@ class ITB_Analysis:
         labels = []
 
         idx_arr_time = find_closest(t, arr_time)
-        idx_arr_time_mse = find_closest(t_mse, arr_time)
+        #idx_arr_time_mse = find_closest(t_mse, arr_time)
         val_arr_time = t[idx_arr_time]
 
         ax1 = plt.subplot(3,1,1)
@@ -2100,6 +2385,7 @@ class ITB_Analysis:
         yf2[(freq < 0)] = 0
         y2 = np.real(fftpack.irfft(yf2) * (int(len(data_highK_condAV_mask) / 2)))
 
+
         fig = plt.figure(figsize=(8,6), dpi=150)
         plt.plot(timedata[:idx_time_period]-timedata[0], data_highK_condAV)#, label=label)
         plt.plot(timedata[:idx_time_period]-timedata[0], data_highK_condAV_mask, label='masked')#, label=label)
@@ -2112,12 +2398,13 @@ class ITB_Analysis:
         plt.xlim(0, timedata[idx_time_period]-timedata[0])
         plt.legend()
         filename = "highK_condAV_mask_lowpass_t%dto%dms_No%d.png" %(int(t_st*1000), int(t_ed*1000), self.ShotNo)
-        plt.savefig(filename)
-        #plt.show()
+        #plt.savefig(filename)
+        plt.show()
 
         #filename = '_t%.2fto%.2f_%d.txt' % (t_st, t_ed, self.ShotNo)
         #np.savetxt('radh_array' + filename, voltdata_array)
         #np.savetxt('radh_timedata' + filename, timedata[idx_time_st:idx_time_ed])
+        return timedata[:idx_time_period]-timedata[0], reff_a99_highK[idx_time_st:idx_time_ed].mean(axis=-1), y2
 
     def ana_plot_radh_condAV_MECH(self, t_st, t_ed, mod_freq):
         #plt.rcParams['axes.labelsize'] = 16 #ラベル全体のフォントサイズ
@@ -2135,16 +2422,16 @@ class ITB_Analysis:
         idx_time_period = find_closest(timedata, t_st + 1.0/mod_freq) - idx_time_st
         voltdata_array = np.zeros((len(timedata[:idx_time_period]), 32))
         #fs = 1e3
-        fs = 5e3
+        fs = 1e3#5e3
         dt = timedata[1] - timedata[0]
         #freq = fftpack.fftfreq(len(timedata[idx_time_st:idx_time_ed]), dt)
         freq = fftpack.fftfreq(len(timedata[:idx_time_period]), dt)
-        fig = plt.figure(figsize=(8,6), dpi=150)
+        #fig = plt.figure(figsize=(8,6), dpi=150)
         for i in range(32):
             voltdata = VoltData.retrieve(data_name_pxi, self.ShotNo, 1, int(ch[i])).get_val()
             #voltdata_condAV = voltdata[idx_time_st:idx_time_ed].reshape(idx_time_period, -1)
             voltdata_condAV = voltdata[idx_time_st:idx_time_ed].reshape(np.int(mod_freq*(t_ed-t_st)), -1).T.mean(axis=-1)
-            voltdata_condAV = normalize_0_1(voltdata_condAV)
+            #voltdata_condAV = normalize_0_1(voltdata_condAV)
             #voltdata_test = voltdata[idx_time_st:idx_time_st+idx_time_period]
             '''
             low-pass filter for voltdata
@@ -2156,8 +2443,9 @@ class ITB_Analysis:
             yf2[(freq < 0)] = 0
             #y2 = np.real(fftpack.irfft(yf2) * (int(len(voltdata[idx_time_st:idx_time_ed]) / 2)))
             y2 = np.real(fftpack.irfft(yf2) * (int(len(voltdata_condAV) / 2)))
-            voltdata_array[:, i] = y2
-            #voltdata_array[:, i] = y2 - y2[:100].mean(axis=-1)
+            #voltdata_array[:, i] = normalize_0_1(y2)
+            #voltdata_array[:, i] = y2
+            voltdata_array[:, i] = y2 - y2[:100].mean(axis=-1)
             #voltdata_array[:, i] = voltdata_condAV - voltdata_condAV[:100].mean(axis=-1)
             #plt.plot(timedata[idx_time_st:idx_time_ed], voltdata[idx_time_st:idx_time_ed])
             label = 'R=%.3fm' % r[i]
@@ -2165,27 +2453,51 @@ class ITB_Analysis:
             #plt.plot(timedata[:idx_time_period], voltdata_condAV - voltdata_condAV[:100].mean(axis=-1))#, label=label)
             #plt.plot(timedata[:idx_time_period], voltdata_condAV)#, label=label)
             #plt.plot(timedata[:idx_time_period], y2-y2[:100].mean(axis=-1), label=label)
-            plt.plot(timedata[:idx_time_period], y2 + 0.1*i, label=label)
+            plt.plot(timedata[:idx_time_period], voltdata_array[:, i] + 0.01*i, label=label)
+            #plt.plot(timedata[:idx_time_period], voltdata_array[:, i], label=label)
         #plt.xlim(4.4, 4.6)
         plt.legend()
         plt.xlabel('Time [sec]', fontsize=20)
         title = '%s, #%d, %.2fs-%.2fs' % (data_name_pxi, self.ShotNo, t_st, t_ed)
         plt.title(title, fontsize=18, loc='right')
-        filename = "radhpxi_normalized01_t%dto%dms_No%d.png" %(int(t_st*1000), int(t_ed*1000), self.ShotNo)
-        plt.savefig(filename)
-        #plt.show()
+        filename = "radhpxi_normalized01_t%dto%dms_No%d_v2.png" %(int(t_st*1000), int(t_ed*1000), self.ShotNo)
+        #plt.savefig(filename)
+        plt.show()
 
         idex_offset = find_closest(timedata, 4.475)
 
+        voltdata_array_deleted = np.delete(voltdata_array, [22,23,25,30,31], 1)
+        rho_deleted = np.delete(rho, [22,23,25,30,31], 0)
+        #indices = find_closest_indices(voltdata_array_deleted[int(idx_time_period/10):int(1*idx_time_period/5.0),:], 0.5)
+        #indices = find_closest_indices(voltdata_array_deleted[:int(1*idx_time_period/6),:], 0.5)
+        indices = find_first_greater_indices(voltdata_array_deleted, 0.5)
+        #indices += int(idx_time_period/10)
+        #indices = find_closest_indices(voltdata_array_deleted[:int(2*idx_time_period/3),:], 0.5)
+        #indices = find_closest_indices(voltdata_array_deleted[:int(2*idx_time_period/8),:], 0.5)
+        #print(voltdata_array_deleted[indices, np.arange(len(indices))])
+        indice_st = 0
+        indice_ed = -5
+        popt, pcov = curve_fit(func, 1e3*timedata[indices[indice_st:indice_ed]], rho_deleted[indice_st:indice_ed])
+        #popt, pcov = curve_fit(func, 1e3*timedata[indices[1:-1]], np.delete(rho, [22,30], 0)[1:-1])
+        perr = np.sqrt((np.diag(pcov)))
+        print(popt)
+        print(perr)
+
         fig = plt.figure(figsize=(8,6), dpi=150)
-        title = 'Low-pass(<%dHz), #%d, %.2fs-%.2fs' % (fs, self.ShotNo, t_st, t_ed)
+        title = 'Low-pass(<%dHz), #%d, %.2fs-%.2fs\nd(reff/a99)/dt=%.9f+-%.9f' % (fs, self.ShotNo, t_st, t_ed, popt[0], perr[0])
         plt.title(title, fontsize=18, loc='right')
         #plt.pcolormesh(timedata[:-1], r, (voltdata_array[1:, :]-voltdata_array[:-1, :]).T, cmap='bwr')
         #plt.pcolormesh(timedata, r, (voltdata_array - np.mean(voltdata_array[idex_offset:idex_offset+10000,:], axis=0)).T, cmap='bwr', vmin=-0.3, vmax=0.3)
         #plt.pcolormesh(timedata[:-1], r, (voltdata_array[1:, :]-voltdata_array[:-1, :]).T, cmap='bwr', vmin=-0.0005, vmax=0.0005)
         #plt.pcolormesh(timedata[idx_time_st:idx_time_ed-1], r, (voltdata_array[1:, :]-voltdata_array[:-1, :]).T, cmap='bwr', vmin=-0.0005, vmax=0.0005)
         #plt.pcolormesh(1e3*timedata[:idx_time_period], r, voltdata_array.T, cmap='jet')
-        plt.pcolormesh(1e3*timedata[:idx_time_period], rho, voltdata_array.T, cmap='jet')
+        #plt.pcolormesh(1e3*timedata[:idx_time_period], rho, voltdata_array.T, cmap='jet')
+        #plt.pcolormesh(1e3*timedata[:idx_time_period], np.delete(rho, [22,30], 0), np.delete(voltdata_array, [22,30], 1).T, cmap='jet')
+        plt.pcolormesh(1e3*timedata[:idx_time_period], rho_deleted, voltdata_array_deleted.T, cmap='jet')
+        plt.plot(1e3*timedata[indices], rho_deleted, 'b.')
+        plt.plot(1e3*timedata[indices[indice_st:indice_ed]], rho_deleted[indice_st:indice_ed], 'r.')
+        #plt.plot(1e3*timedata[indices], func(1e3*timedata[indices], *popt), 'b')
+        plt.plot(1e3*timedata[indices[indice_st:indice_ed]], func(1e3*timedata[indices[indice_st:indice_ed]], *popt), 'r')
         #plt.pcolormesh(t, r, Te.T)
         #plt.pcolormesh(t, r[1:-1], (Te[:, 2:]-Te[:, 1:-1]-Te[:, 1:-1]+Te[:, :-2]).T, cmap='bwr')
         cb = plt.colorbar()
@@ -2194,17 +2506,133 @@ class ITB_Analysis:
         cb.set_label("Te [0, 1]", fontsize=22)
         cb.ax.tick_params(labelsize=22)
         plt.xlim(0, 1e3*(timedata[idx_time_period]-timedata[0]))
+        plt.ylim(np.min(rho_deleted), np.max(rho_deleted))
         plt.xlabel("Time [ms]", fontsize=22)
         #plt.xlim(4.4, 4.6)
         #plt.ylabel("R [m]", fontsize=22)
         plt.ylabel("reff/a99", fontsize=22)
         plt.tick_params(which='both', axis='both', right=True, top=True, left=True, bottom=True, labelsize=22)
-        filename = "radhpxi_pcolormesh_normalized01_t%dto%dms_No%d.png" %(int(t_st*1000), int(t_ed*1000), self.ShotNo)
-        plt.savefig(filename)
-        #plt.show()
+        filename = "radhpxi_pcolormesh_normalized01_t%dto%dms_No%d_v2.png" %(int(t_st*1000), int(t_ed*1000), self.ShotNo)
+        #plt.savefig(filename)
+        plt.show()
         #filename = '_t%.2fto%.2f_%d.txt' % (t_st, t_ed, self.ShotNo)
         #np.savetxt('radh_array' + filename, voltdata_array)
         #np.savetxt('radh_timedata' + filename, timedata[idx_time_st:idx_time_ed])
+
+        plt.pcolormesh(1e3*timedata[:idx_time_period], rho_deleted[:-1], (np.diff(voltdata_array_deleted)).T, cmap='bwr', vmin=-0.1, vmax=0.1)
+        cb = plt.colorbar()
+        cb.set_label("dTe [0, 1]", fontsize=22)
+        cb.ax.tick_params(labelsize=22)
+        plt.xlim(0, 1e3*(timedata[idx_time_period]-timedata[0]))
+        plt.ylim(np.min(rho_deleted), np.max(rho_deleted))
+        plt.xlabel("Time [ms]", fontsize=22)
+        plt.ylabel("reff/a99", fontsize=22)
+        plt.tick_params(which='both', axis='both', right=True, top=True, left=True, bottom=True, labelsize=22)
+        plt.show()
+
+        #offset = np.arange(voltdata_array_deleted.shape[1])
+        #plt.plot(1e3*timedata[:idx_time_period], np.diff(voltdata_array_deleted) + 0.1*offset[:-1])
+        plt.plot(1e3*timedata[:idx_time_period], np.diff(voltdata_array_deleted))
+        plt.grid(which="both", axis="y")
+        plt.show()
+
+        '''
+        y = np.delete(rho, [23,30], 0)
+        x = 1e3*timedata[:idx_time_period]
+        #y = rho
+        Z = np.delete(voltdata_array, [23,30], 1)
+        #Z = voltdata_array
+        #X, Y = np.meshgrid(1e3*timedata[:idx_time_period], rho)
+        X, Y = np.meshgrid(x, y)
+        fig, ax = plt.subplots()
+        #contours = plt.contour(X, Y, voltdata_array.T, 5, colors='black')
+        #contours = plt.contour(X, Y, Z.T, 30, colors='black')
+        contours = plt.contour(X, Y, Z.T, [0.001, 0.5, 0.999], colors='white')
+        contours = plt.contourf(X, Y, Z.T, 30, cmap='jet')
+        #im = ax.imshow(voltdata_array.T, extent=[0, 25, np.min(rho), np.max(rho)], origin='lower', cmap='jet', aspect=25)
+        #im = ax.pcolormesh(1e3*timedata[:idx_time_period], rho, voltdata_array.T, cmap='jet')
+        #im = ax.pcolormesh(x, y, Z.T, cmap='jet')
+        #plt.colorbar(im)
+        plt.show()
+        #self.simulate_heat_propagation(timedata[:idx_time_period], voltdata_array[:,5])
+        '''
+
+        #return 1e3*timedata[:idx_time_period], rho_deleted, np.diff(voltdata_array_deleted)
+        return 1e3*timedata[:idx_time_period], rho_deleted, voltdata_array_deleted
+
+    def normalize_highK_w_gradTe(self, t_st, t_ed, mod_freq):
+        timedata_highK, rho_highK, data_highK = self.ana_plot_highK_condAV_MECH(t_st, t_ed, mod_freq)
+        timedata_gradTe, rho_gradTe, data_gradTe = self.ana_plot_radh_condAV_MECH(t_st, t_ed, mod_freq)
+        timedata_highK *= 1e3
+        timedata_highK_ = np.linspace(0, 25, len(timedata_highK))
+        timedata_gradTe_ = np.linspace(0, 25, len(timedata_gradTe))
+        f = interp1d(timedata_highK_, data_highK, kind='cubic')
+        data_highK_extended = f(timedata_gradTe_)
+        #plt.plot(timedata_highK_, data_highK)
+        #plt.plot(timedata_gradTe_, data_highK_extended+0.001)
+        i_rho = 0
+        label_gradTe = 'r/a=%.3f)' % rho_gradTe[i_rho]
+        plt.plot(timedata_gradTe_, data_gradTe[:, i_rho], label='gradTe(' + label_gradTe)
+        label_gradTe = 'r/a=%.3f)' % rho_gradTe[i_rho+1]
+        plt.plot(timedata_gradTe_, data_gradTe[:, i_rho+1], label='gradTe(' + label_gradTe)
+        label_gradTe = 'r/a=%.3f)' % rho_gradTe[i_rho+2]
+        plt.plot(timedata_gradTe_, data_gradTe[:, i_rho+2], label='gradTe(' + label_gradTe)
+        plt.xlabel('Time [msec]')
+        plt.legend()
+        plt.show()
+        title = '#%d, %.2fs-%.2fs' % (self.ShotNo, t_st, t_ed)
+        plt.title(title)
+        #label_gradTe = 'r/a=%.3f)' % rho_gradTe[i_rho]
+        label_highK = 'r/a=%.3f)' % rho_highK
+        plt.plot(timedata_gradTe_, normalize_0_1(1*data_gradTe[:, i_rho]), label='gradTe(' + label_gradTe)
+        plt.plot(timedata_gradTe_, normalize_0_1(data_highK_extended), label='highK(' + label_highK)
+        plt.xlabel('Time [msec]')
+        plt.legend()
+        plt.show()
+        plt.plot(timedata_gradTe_, -1*data_highK_extended/data_gradTe[:, i_rho])
+        plt.ylim(-1,1)
+        plt.show()
+        print('test')
+
+    def simulate_heat_propagation(self, t, y):
+        y_2D = np.zeros((2*len(y), 20))
+        t_2 = np.linspace(0, np.max(t)*2, 2*len(t))
+        for i in range(20):
+            y_2D[40*i:40*i+len(y), i] = y
+            #y_2D[750 + 60*i:750 + 60*i+len(y), i] += y
+            #y_2D[1500 + 80*i:1500 + 80*i+len(y), i] += y
+            #y_2D[2250 + 100*i:2250 + 100*i+len(y), i] += y
+            #y_2D[3000 + 120*i:3000 + 120*i+len(y), i] += y
+            #y_2D[3750 + 140*i:3750 + 140*i+len(y), i] += y
+            #y_2D[4500 + 160*i:4500 + 160*i+len(y), i] += y
+            #y_2D[:, i] = normalize_0_1(y_2D[:,i])
+            #y_2D[160*i:160*i+len(y), i] = y
+            #y_2D[750 +160*i:750 +160*i+len(y), i] += y
+            #y_2D[1500 +160*i:1500 +160*i+len(y), i] += y
+            #y_2D[2250 +160*i:2250 +160*i+len(y), i] += y
+            #y_2D[3000 +160*i:3000 +160*i+len(y), i] += y
+            #y_2D[3750 +160*i:3750 +160*i+len(y), i] += y
+            #y_2D[4500 +160*i:4500 +160*i+len(y), i] += y
+            #y_2D[:, i] = normalize_0_1(y_2D[:,i])
+        rho = np.linspace(0, 1, 20)
+
+        fig = plt.figure(figsize=(8,6), dpi=150)
+        #title = 'Low-pass(<%dHz), #%d, %.2fs-%.2fs' % (fs, self.ShotNo, t_st, t_ed)
+        #plt.title(title, fontsize=18, loc='right')
+        print(t_2)
+        print(rho)
+        print(y_2D.shape)
+        plt.pcolormesh(1e3*t_2, rho, y_2D.T, cmap='jet')
+        cb = plt.colorbar()
+        cb.set_label("Te [0, 1]", fontsize=22)
+        cb.ax.tick_params(labelsize=22)
+        #plt.xlim(0, 1e3*(timedata[idx_time_period]-timedata[0]))
+        plt.xlabel("Time [ms]", fontsize=22)
+        plt.ylabel("reff/a99", fontsize=22)
+        plt.tick_params(which='both', axis='both', right=True, top=True, left=True, bottom=True, labelsize=22)
+        #filename = "radhpxi_pcolormesh_normalized01_t%dto%dms_No%d_v2.png" %(int(t_st*1000), int(t_ed*1000), self.ShotNo)
+        #plt.savefig(filename)
+        plt.show()
 
     def ana_plot_ece(self):
         data = AnaData.retrieve('ece_fast', self.ShotNo, 1)
@@ -2422,7 +2850,7 @@ class ITB_Analysis:
         axarr[0].plot(t_Wp, data_wp_, color='black')
         axarr[1].plot(t_fir, data_fir_, color='red')
         axarr[2].plot(t_ip, data_ip_, label='Ip', color='blue')
-        axarr[0].set_xlim(3, 6.5)
+        axarr[0].set_xlim(3, 7)
         axarr[0].set_ylim(0,)
         axarr[1].set_ylim(0,)
         axarr[3].set_ylim(0,)
@@ -3057,6 +3485,18 @@ def find_closest(A, target):
     idx -= target - left < right - target
     return idx
 
+def find_first_greater_indices(arr, target):
+    '''
+    この関数は、2次元配列 arr と目標値 target を引数に取り、 arr の各列に対して、その列でインデックスの若い方からスキャンしていき、
+    はじめに target より大きい値が格納されたインデックスを返します。
+    この例では、NumPyライブラリを使用しています。
+     arr > target は、 arr の各要素が target より大きいかどうかを判定します。
+      argmax 関数は、その結果の各列に対して、最初のTrueのインデックス（1次元配列として）を返します。
+    '''
+    arr = np.array(arr[1:])
+    indices = (arr > target).argmax(axis=0)
+    return indices + 1
+
 def low_pass_filter(timedata, voltdata, freq, fs):
     '''
     low-pass filter for voltdata
@@ -3208,15 +3648,76 @@ def normalize_0_1(array):
     #normalized_array = (array - array[:100].mean(axis=-1))/(np.max(array) - np.min(array))
     return normalized_array
 
+#Bing AI
+'''
+2次元配列usの列方向の数列を最大値１、最小値０に規格化する関数をPythonで記述してください。この処理を行方向全てに適用します。
+'''
+def normalize_all_columns_np(us):
+    us_np = np.array(us)
+    max_values = us_np.max(axis=0)
+    min_values = us_np.min(axis=0)
+    us_np = (us_np - min_values) / (max_values - min_values)
+    return us_np.tolist()
+
+def find_closest_indices(arr, target):
+    '''
+    この関数は、2次元配列 arr と目標値 target を引数に取り、 arr の各列に対して、その列で target に最も近い値が格納されたインデックスを返します。
+    この例では、NumPyライブラリを使用しています。
+     np.abs(arr - target) は、 arr の各要素から target を引いた値の絶対値を計算します。
+      np.argmin() 関数は、その結果の各列に対して、最小値のインデックス（1次元配列として）を返します。
+    '''
+    arr = np.array(arr)
+    indices = np.argmin(np.abs(arr - target), axis=0)
+    return indices
+
+def find_closest_index(arr, target):
+    '''
+    この関数は、2次元配列 arr と目標値 target を引数に取り、 arr の中で target に最も近い値が格納されたインデックスを返します。
+    この例では、NumPyライブラリを使用しています。
+     np.abs(arr - target) は、 arr の各要素から target を引いた値の絶対値を計算します。
+      np.argmin() 関数は、その結果の中で最小値のインデックス（1次元配列として）を返します。
+      最後に、 np.unravel_index() 関数を使用して、そのインデックスを2次元配列のインデックスに変換しています。
+    '''
+    arr = np.array(arr)
+    index = np.unravel_index(np.argmin(np.abs(arr - target)), arr.shape)
+    return index
+
+def find_first_greater_indices(arr, target):
+    '''
+    この関数は、2次元配列 arr と目標値 target を引数に取り、 arr の各列に対して、その列でインデックスの若い方からスキャンしていき、
+    はじめに target より大きい値が格納されたインデックスを返します。
+    この例では、NumPyライブラリを使用しています。
+     arr > target は、 arr の各要素が target より大きいかどうかを判定します。
+      argmax 関数は、その結果の各列に対して、最初のTrueのインデックス（1次元配列として）を返します。
+    '''
+    arr = np.array(arr)
+    indices = (arr > target).argmax(axis=0)
+    return indices
+
+def apply_kernel(image, kernel):
+    return convolve2d(image, kernel, mode='same')
+
+# 2次元配列の任意の列を削除する関数を定義
+def delete_column(array, col):
+  # 削除したい列を除く列のインデックスを取得
+    cols = list(range(array.shape[1]))
+    cols.remove(col)
+  # 新しい配列を作成
+    new_array = array[:, cols]
+  # 新しい配列を返す
+    return new_array
+
+def func(x, a, b):
+    return a * x + b
 
 if __name__ == "__main__":
     start = time.time()
     #test_laplace_asymmetric()
-    for i in range(185797, 185839):
-        itba = ITB_Analysis(i, i+1)
-        itba.ana_plot_radh_condAV_MECH(t_st=4.50, t_ed=5.00, mod_freq=40)
+    #for i in range(183379, 183409):#185798, 185839):#
+    #    itba = ITB_Analysis(i, i+1)
     #    itba.ana_plot_highK_condAV_MECH(t_st=5.000, t_ed=6.00, mod_freq=40)
-        print(i)
+    #    print(i)
+    #    itba.plot_HSTS()
     #    #itba.ana_plot_ece() #    itba.ana_plot_discharge_waveform4ITB()
     #    itba.ana_plot_fluctuation()
     #    itba.ana_plot_allTS_sharex()
@@ -3225,7 +3726,7 @@ if __name__ == "__main__":
     #ana_findpeaks_shotarray()
     #ana_delaytime_shotarray()
     #itba = ITB_Analysis(int(ShotNo))
-    itba = ITB_Analysis(183392, 169717)#167088), 163958
+    itba = ITB_Analysis(183397, 169717)#167088), 163958
     #itba.conditional_average_highK_mppk(t_st=4.3, t_ed=4.60)
     #ShotNos = np.arange(178939, 178970)
     #ShotNos = 169690 + np.array([2,3,8,9,17,18,20,22,24,25])
@@ -3233,12 +3734,17 @@ if __name__ == "__main__":
     #print(ShotNos)
     #itba.combine_files(ShotNos, 20210216)
     #itba.ana_plot_highSP_TS(1)
+    #itba.plot_HSTS()
     #itba.get_ne(target_t=4.4, target_r=0.2131075)
     #itba.ana_plot_ece()
     #itba.ana_plot_radh(t_st=4.30, t_ed=5.30)
     #itba.ana_plot_radh_highK(t_st=4.0, t_ed=5.00)
-    #itba.ana_plot_highK_condAV_MECH(t_st=4.500, t_ed=5.00, mod_freq=40)
-    #itba.ana_plot_radh_condAV_MECH(t_st=4.000, t_ed=5.00, mod_freq=40)
+    #itba.ana_plot_highK_condAV_MECH(t_st=3.300, t_ed=4.30, mod_freq=40)
+    itba.normalize_highK_w_gradTe(t_st=3.300, t_ed=4.30, mod_freq=40)
+    #itba.ana_plot_discharge_waveform4ITB(isSaveData=False)
+    #itba.ana_plot_radh_condAV_MECH(t_st=3.10, t_ed=4.0, mod_freq=40)
+    #itba.ana_plot_radh_condAV_MECH(t_st=3.40, t_ed=4.3, mod_freq=40)
+    #itba.ana_plot_radh_condAV_MECH(t_st=4.30, t_ed=5.3, mod_freq=40)
     #itba.plot_TS()
     #itba.plot_2TS()
     #itba.ana_plot_pci_test()
@@ -3253,7 +3759,6 @@ if __name__ == "__main__":
     #itba.ana_plot_fluctuation()
     #itba.ana_plot_allMSE_sharex()
     #itba.ana_plot_discharge_waveform_basic()
-    #itba.ana_plot_discharge_waveform4ITB(isSaveData=False)
     #itba.cal_hurstd_radh(t_st=4.35, t_ed=4.7
     #itba.ana_plot_allTS_sharex()
     #itba.ana_plot_allThomson_sharex()
