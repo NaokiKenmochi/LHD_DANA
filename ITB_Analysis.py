@@ -2375,7 +2375,7 @@ class ITB_Analysis:
         data_highK_condAV = data_highK[idx_time_st:idx_time_ed].reshape(i_wave, -1).T.mean(axis=-1)
         data_highK_condAV_mask = (data_highK[idx_time_st:idx_time_ed].reshape(i_wave, -1).T * data_highK_probe_condAV_01.T).mean(axis=-1)*i_wave/np.sum(data_highK_probe_condAV_01)
 
-        fs = 1e3
+        fs = 5e3#1e3
         dt = timedata[1] - timedata[0]
         #freq = fftpack.fftfreq(len(timedata[idx_time_st:idx_time_ed]), dt)
         freq = fftpack.fftfreq(len(timedata[:idx_time_period]), dt)
@@ -2451,8 +2451,8 @@ class ITB_Analysis:
         idx_time_ed = find_closest(timedata, t_ed)
         idx_time_period = find_closest(timedata, t_st + 1.0/mod_freq) - idx_time_st
         voltdata_array = np.zeros((len(timedata[:idx_time_period]), 32))
-        fs = 1e3
-        #fs = 5e3
+        #fs = 1e3
+        fs = 5e3
         dt = timedata[1] - timedata[0]
         #freq = fftpack.fftfreq(len(timedata[idx_time_st:idx_time_ed]), dt)
         freq = fftpack.fftfreq(len(timedata[:idx_time_period]), dt)
@@ -2474,8 +2474,8 @@ class ITB_Analysis:
             #y2 = np.real(fftpack.irfft(yf2) * (int(len(voltdata[idx_time_st:idx_time_ed]) / 2)))
             y2 = np.real(fftpack.irfft(yf2) * (int(len(voltdata_condAV) / 2)))
             #voltdata_array[:, i] = normalize_0_1(y2)
-            #voltdata_array[:, i] = y2
-            voltdata_array[:, i] = y2 - y2[:100].mean(axis=-1)
+            voltdata_array[:, i] = y2
+            #voltdata_array[:, i] = y2 - y2[:100].mean(axis=-1)
             #voltdata_array[:, i] = voltdata_condAV - voltdata_condAV[:100].mean(axis=-1)
             #plt.plot(timedata[idx_time_st:idx_time_ed], voltdata[idx_time_st:idx_time_ed])
             label = 'R=%.3fm' % r[i]
@@ -2483,7 +2483,7 @@ class ITB_Analysis:
             #plt.plot(timedata[:idx_time_period], voltdata_condAV - voltdata_condAV[:100].mean(axis=-1))#, label=label)
             #plt.plot(timedata[:idx_time_period], voltdata_condAV)#, label=label)
             #plt.plot(timedata[:idx_time_period], y2-y2[:100].mean(axis=-1), label=label)
-            plt.plot(timedata[:idx_time_period], voltdata_array[:, i] + 0.1*i, label=label)
+            plt.plot(timedata[:idx_time_period], voltdata_array[:, i], label=label)
             #plt.plot(timedata[:idx_time_period], voltdata_array[:, i], label=label)
         #plt.xlim(4.4, 4.6)
         plt.legend()
@@ -2550,7 +2550,7 @@ class ITB_Analysis:
         #np.savetxt('radh_array' + filename, voltdata_array)
         #np.savetxt('radh_timedata' + filename, timedata[idx_time_st:idx_time_ed])
 
-        plt.pcolormesh(1e3*timedata[:idx_time_period], rho_deleted[:-1], (np.diff(voltdata_array_deleted)).T, cmap='bwr', vmin=-0.1, vmax=0.1)
+        plt.pcolormesh(1e3*timedata[:idx_time_period], rho_deleted[:-1], (np.diff(voltdata_array_deleted)).T, cmap='bwr', vmin=-0.5, vmax=0.5)
         cb = plt.colorbar()
         cb.set_label("dTe [0, 1]", fontsize=22)
         cb.ax.tick_params(labelsize=22)
@@ -2756,7 +2756,7 @@ class ITB_Analysis:
         data_highK_extended = f(timedata_gradTe_)
         #plt.plot(timedata_highK_, data_highK)
         #plt.plot(timedata_gradTe_, data_highK_extended+0.001)
-        i_rho =19
+        i_rho = 7
         label_gradTe = 'r/a=%.3f)' % rho_gradTe[i_rho]
         plt.plot(timedata_gradTe_, data_gradTe[:, i_rho], label='gradTe(' + label_gradTe)
         label_gradTe = 'r/a=%.3f)' % rho_gradTe[i_rho+1]
@@ -2772,8 +2772,8 @@ class ITB_Analysis:
         label_highK = 'r/a=%.3f)' % rho_highK
         label_gradTe = 'r/a=%.3f)' % rho_gradTe[i_rho]
         plt.plot(timedata_gradTe_, normalize_0_1(-1*data_gradTe[:, i_rho]), label='gradTe(' + label_gradTe, color='blue')
-        label_gradTe = 'r/a=%.3f)' % rho_gradTe[i_rho+1]
-        plt.plot(timedata_gradTe_, normalize_0_1(-1*data_gradTe[:, i_rho+1]), label='gradTe(' + label_gradTe, color='green')
+        #label_gradTe = 'r/a=%.3f)' % rho_gradTe[i_rho+1]
+        #plt.plot(timedata_gradTe_, normalize_0_1(-1*data_gradTe[:, i_rho+1]), label='gradTe(' + label_gradTe, color='green')
         plt.plot(timedata_gradTe_, normalize_0_1(data_highK_extended), label='highK(' + label_highK, color='red')
         plt.xlabel('Time [msec]')
         plt.legend()
@@ -3915,7 +3915,7 @@ if __name__ == "__main__":
     #ana_findpeaks_shotarray()
     #ana_delaytime_shotarray()
     #itba = ITB_Analysis(int(ShotNo))
-    itba = ITB_Analysis(183390, 169717)#167088), 163958
+    itba = ITB_Analysis(183396, 169717)#167088), 163958
     #itba.conditional_average_highK_mppk(t_st=4.3, t_ed=4.60)
     #ShotNos = np.arange(178939, 178970)
     #ShotNos = 169690 + np.array([2,3,8,9,17,18,20,22,24,25])
@@ -3929,7 +3929,7 @@ if __name__ == "__main__":
     #itba.ana_plot_radh(t_st=4.30, t_ed=5.30)
     #itba.ana_plot_radh_highK(t_st=4.0, t_ed=5.00)
     #itba.ana_plot_highK_condAV_MECH(t_st=3.300, t_ed=4.30, mod_freq=40)
-    itba.normalize_highK_w_gradTe(t_st=4.60, t_ed=5.30, mod_freq=40)
+    itba.normalize_highK_w_gradTe(t_st=3.30, t_ed=4.30, mod_freq=40)
     #itba.ana_plot_discharge_waveform4ITB(isSaveData=False)
     #itba.ana_plot_radh_condAV_MECH(t_st=3.10, t_ed=4.0, mod_freq=40)
     #itba.ana_plot_radh_condAV_MECH(t_st=3.40, t_ed=4.3, mod_freq=40)
