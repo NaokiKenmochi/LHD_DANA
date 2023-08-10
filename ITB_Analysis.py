@@ -2313,7 +2313,7 @@ class ITB_Analysis:
             plt.plot(timedata[idx_time_st:idx_time_ed], voltdata[idx_time_st:idx_time_ed])
             label = 'R=%.3fm' % r[i]
             plt.plot(timedata[idx_time_st:idx_time_ed], y2, label=label)
-        plt.xlim(4.4, 4.6)
+        #plt.xlim(4.4, 4.6)
         plt.legend()
         plt.xlabel('Time [sec]')
         title = '%s, #%d' % (data_name_pxi, self.ShotNo)
@@ -2375,7 +2375,7 @@ class ITB_Analysis:
         data_highK_condAV = data_highK[idx_time_st:idx_time_ed].reshape(i_wave, -1).T.mean(axis=-1)
         data_highK_condAV_mask = (data_highK[idx_time_st:idx_time_ed].reshape(i_wave, -1).T * data_highK_probe_condAV_01.T).mean(axis=-1)*i_wave/np.sum(data_highK_probe_condAV_01)
 
-        fs = 5e3#1e3
+        fs = 1e3#1e3
         dt = timedata[1] - timedata[0]
         #freq = fftpack.fftfreq(len(timedata[idx_time_st:idx_time_ed]), dt)
         freq = fftpack.fftfreq(len(timedata[:idx_time_period]), dt)
@@ -2409,20 +2409,6 @@ class ITB_Analysis:
     def ana_plot_radhpxi_calThom_condAV_MECH(self, t_st, t_ed, mod_freq):
         data = AnaData.retrieve('ece_radhpxi_calThom', self.ShotNo, 1)
 
-        # 次元 'R' のデータを取得 (要素数137 の一次元配列(numpy.Array)が返ってくる)
-        r = data.getDimData('R')
-        dnum = data.getDimNo()
-        for i in range(dnum):
-           print(i, data.getDimName(i), data.getDimUnit(i))
-        vnum = data.getValNo()
-        for i in range(vnum):
-           print(i, data.getValName(i), data.getValUnit(i))
-
-        # 次元 'Time' のデータを取得 (要素数96 の一次元配列(numpy.Array)が返ってくる)
-        #t = data.getDimData('Time')
-        #R = data.getDimData('R')
-
-        # 変数 'Te' のデータを取得 (要素数 136x96 の二次元配列(numpy.Array)が返ってくる)
         Te = data.getValData('Te')
         #dTe = data.getValData('dTe')
         #ne = data.getValData('n_e')
@@ -2452,7 +2438,7 @@ class ITB_Analysis:
         idx_time_period = find_closest(timedata, t_st + 1.0/mod_freq) - idx_time_st
         voltdata_array = np.zeros((len(timedata[:idx_time_period]), 32))
         #fs = 1e3
-        fs = 5e3
+        fs = 1e3
         dt = timedata[1] - timedata[0]
         #freq = fftpack.fftfreq(len(timedata[idx_time_st:idx_time_ed]), dt)
         freq = fftpack.fftfreq(len(timedata[:idx_time_period]), dt)
@@ -2756,7 +2742,7 @@ class ITB_Analysis:
         data_highK_extended = f(timedata_gradTe_)
         #plt.plot(timedata_highK_, data_highK)
         #plt.plot(timedata_gradTe_, data_highK_extended+0.001)
-        i_rho = 7
+        i_rho =  19
         label_gradTe = 'r/a=%.3f)' % rho_gradTe[i_rho]
         plt.plot(timedata_gradTe_, data_gradTe[:, i_rho], label='gradTe(' + label_gradTe)
         label_gradTe = 'r/a=%.3f)' % rho_gradTe[i_rho+1]
@@ -2781,7 +2767,11 @@ class ITB_Analysis:
         plt.plot(timedata_gradTe_, -1*data_highK_extended/data_gradTe[:, i_rho])
         plt.ylim(-1,1)
         plt.show()
-        print('test')
+        plt.title(title + ', gradTe(' + label_gradTe + ', turb.(' + label_highK)
+        plt.plot(-1*data_gradTe[:, i_rho], data_highK_extended, color='red')
+        plt.xlabel('gradTe')
+        plt.ylabel('e-scale turb.')
+        plt.show()
 
     def simulate_heat_propagation(self, t, y):
         y_2D = np.zeros((2*len(y), 20))
@@ -3915,7 +3905,7 @@ if __name__ == "__main__":
     #ana_findpeaks_shotarray()
     #ana_delaytime_shotarray()
     #itba = ITB_Analysis(int(ShotNo))
-    itba = ITB_Analysis(183396, 169717)#167088), 163958
+    itba = ITB_Analysis(183400, 169717)#167088), 163958
     #itba.conditional_average_highK_mppk(t_st=4.3, t_ed=4.60)
     #ShotNos = np.arange(178939, 178970)
     #ShotNos = 169690 + np.array([2,3,8,9,17,18,20,22,24,25])
@@ -3926,8 +3916,8 @@ if __name__ == "__main__":
     #itba.plot_HSTS()
     #itba.get_ne(target_t=4.4, target_r=0.2131075)
     #itba.ana_plot_ece()
-    #itba.ana_plot_radh(t_st=4.30, t_ed=5.30)
-    #itba.ana_plot_radh_highK(t_st=4.0, t_ed=5.00)
+    #itba.ana_plot_radh(t_st=3.30, t_ed=5.30)
+    #itba.ana_plot_radh_highK(t_st=3.3, t_ed=5.00)
     #itba.ana_plot_highK_condAV_MECH(t_st=3.300, t_ed=4.30, mod_freq=40)
     itba.normalize_highK_w_gradTe(t_st=3.30, t_ed=4.30, mod_freq=40)
     #itba.ana_plot_discharge_waveform4ITB(isSaveData=False)
