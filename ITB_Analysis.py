@@ -1291,8 +1291,8 @@ class ITB_Analysis:
         sdens_rkt = data_pci_sdens_rkt.getValData(0)
         #i_time=1380
         images = []
-        #for i_time in range(1300, 1701):
-        for i_time in range(10):
+        for i_time in range(2000, 2050):
+        #for i_time in range(10):
             fig, axarr = plt.subplots(5, 1, gridspec_kw={'wspace': 0, 'hspace': 0.25, 'height_ratios': [4,4,1,1,1]}, figsize=(8, 11), dpi=150,
                                       sharex=False)
             # pp.set_clim(1e1, 1e3)
@@ -1304,8 +1304,8 @@ class ITB_Analysis:
             #fig = plt.figure()
             #ax1 = fig.add_subplot(211)
             axarr[0].set_title('#%d, t=%.3fsec' % (self.ShotNo, t_pci_sdens_rkt[i_time]), fontsize=20, loc='left')
-            mappable0 = axarr[0].pcolormesh(reff_a99_pci_sdens_rkt, k_pci_sdens_rkt, sdens_rkt[i_time].T, cmap='jet', norm=LogNorm(vmin=1e3, vmax=1e7))
-            mappable1 = axarr[1].pcolormesh(reff_a99_pci_sdens_rvt, v_pci_sdens_rvt, sdens_rvt[i_time].T, cmap='jet', norm=LogNorm(vmin=1e-2, vmax=1e2))
+            mappable0 = axarr[0].pcolormesh(reff_a99_pci_sdens_rkt, k_pci_sdens_rkt, sdens_rkt[i_time].T, cmap='jet', norm=LogNorm(vmin=1e3, vmax=1e5))
+            mappable1 = axarr[1].pcolormesh(reff_a99_pci_sdens_rvt, v_pci_sdens_rvt, sdens_rvt[i_time].T, cmap='jet', norm=LogNorm(vmin=1e-2, vmax=1e0))
             pp0 = fig.colorbar(mappable0, ax=axarr[0], orientation="vertical", pad=0.01)
             pp1 = fig.colorbar(mappable1, ax=axarr[1], orientation="vertical", pad=0.01)
             pp0.set_label('PSD', fontname="Arial", fontsize=10)
@@ -1321,7 +1321,7 @@ class ITB_Analysis:
             axarr[2].tick_params(which='both', axis='both', right=True, top=True, left=True, bottom=True, labelsize=8)
             axarr[3].tick_params(which='both', axis='both', right=True, top=True, left=True, bottom=True, labelsize=8)
             im0 = axarr[2].pcolormesh(t, reff_a99, ntilde_pci.T, cmap='jet',
-                                      norm=LogNorm(vmin=1e6, vmax=1e8))
+                                      norm=LogNorm(vmin=1e6, vmax=1e7))
             im1 = axarr[3].pcolormesh(t, reff_a99, v_pci.T, cmap='jet')
             #im2 = axarr[2].pcolormesh(t, reff_a99, cosv_pci.T, cmap='jet', vmin=-0.5, vmax=0.5)
             pp0 = fig.colorbar(im0, ax=axarr[2], pad=0.01)
@@ -2045,7 +2045,7 @@ class ITB_Analysis:
         data_radhinfo = AnaData.retrieve(data_name_info, self.ShotNo, 1)
         r = data_radhinfo.getValData('rho')
 
-        i_ch = 11#5#6#9#13#14
+        i_ch = 6#5#6#9#13#14
         timedata = TimeData.retrieve(data_name_pxi, self.ShotNo, 1, 1).get_val()
         voltdata = VoltData.retrieve(data_name_pxi, self.ShotNo, 1, i_ch+1).get_val()
 
@@ -2156,7 +2156,7 @@ class ITB_Analysis:
         data_radhinfo = AnaData.retrieve(data_name_info, self.ShotNo, 1)
         r = data_radhinfo.getValData('rho')
 
-        i_ch = 15#11#5#6#9#13#14
+        i_ch = 4#11#5#6#9#13#14
         timedata = TimeData.retrieve(data_name_pxi, self.ShotNo, 1, 1).get_val()
         voltdata = VoltData.retrieve(data_name_pxi, self.ShotNo, 1, i_ch+1).get_val()
 
@@ -2375,7 +2375,7 @@ class ITB_Analysis:
         data_highK_condAV = data_highK[idx_time_st:idx_time_ed].reshape(i_wave, -1).T.mean(axis=-1)
         data_highK_condAV_mask = (data_highK[idx_time_st:idx_time_ed].reshape(i_wave, -1).T * data_highK_probe_condAV_01.T).mean(axis=-1)*i_wave/np.sum(data_highK_probe_condAV_01)
 
-        fs = 1e3#1e3
+        fs = 5e3#5e3#1e3
         dt = timedata[1] - timedata[0]
         #freq = fftpack.fftfreq(len(timedata[idx_time_st:idx_time_ed]), dt)
         freq = fftpack.fftfreq(len(timedata[:idx_time_period]), dt)
@@ -2438,7 +2438,7 @@ class ITB_Analysis:
         idx_time_period = find_closest(timedata, t_st + 1.0/mod_freq) - idx_time_st
         voltdata_array = np.zeros((len(timedata[:idx_time_period]), 32))
         #fs = 1e3
-        fs = 1e3
+        fs = 5e3
         dt = timedata[1] - timedata[0]
         #freq = fftpack.fftfreq(len(timedata[idx_time_st:idx_time_ed]), dt)
         freq = fftpack.fftfreq(len(timedata[:idx_time_period]), dt)
@@ -2593,7 +2593,7 @@ class ITB_Analysis:
         idx_time_period = find_closest(timedata, t_st + 1.0/mod_freq) - idx_time_st
         voltdata_array = np.zeros((len(timedata[:idx_time_period]), 32))
         #fs = 1e3
-        fs = 1e3#5e3
+        fs = 5e3#5e3
         dt = timedata[1] - timedata[0]
         #freq = fftpack.fftfreq(len(timedata[idx_time_st:idx_time_ed]), dt)
         freq = fftpack.fftfreq(len(timedata[:idx_time_period]), dt)
@@ -2614,9 +2614,9 @@ class ITB_Analysis:
             yf2[(freq < 0)] = 0
             #y2 = np.real(fftpack.irfft(yf2) * (int(len(voltdata[idx_time_st:idx_time_ed]) / 2)))
             y2 = np.real(fftpack.irfft(yf2) * (int(len(voltdata_condAV) / 2)))
-            #voltdata_array[:, i] = normalize_0_1(y2)
+            voltdata_array[:, i] = normalize_0_1(y2)
             #voltdata_array[:, i] = y2
-            voltdata_array[:, i] = y2 - y2[:100].mean(axis=-1)
+            #voltdata_array[:, i] = y2 - y2[:100].mean(axis=-1)
             #voltdata_array[:, i] = voltdata_condAV - voltdata_condAV[:100].mean(axis=-1)
             #plt.plot(timedata[idx_time_st:idx_time_ed], voltdata[idx_time_st:idx_time_ed])
             label = 'R=%.3fm' % r[i]
@@ -2641,12 +2641,13 @@ class ITB_Analysis:
         rho_deleted = np.delete(rho, [22,23,25,30,31], 0)
         #indices = find_closest_indices(voltdata_array_deleted[int(idx_time_period/10):int(1*idx_time_period/5.0),:], 0.5)
         #indices = find_closest_indices(voltdata_array_deleted[:int(1*idx_time_period/6),:], 0.5)
-        indices = find_first_greater_indices(voltdata_array_deleted, 0.5)
+        #indices = find_first_greater_indices(voltdata_array_deleted, 0.5)   #Use for half point fitting
+        indices = np.argmax(voltdata_array_deleted, axis=0)   #Use for maximum point fitting
         #indices += int(idx_time_period/10)
         #indices = find_closest_indices(voltdata_array_deleted[:int(2*idx_time_period/3),:], 0.5)
         #indices = find_closest_indices(voltdata_array_deleted[:int(2*idx_time_period/8),:], 0.5)
         #print(voltdata_array_deleted[indices, np.arange(len(indices))])
-        indice_st = 0
+        indice_st = 6
         indice_ed = -5
         popt, pcov = curve_fit(func, 1e3*timedata[indices[indice_st:indice_ed]], rho_deleted[indice_st:indice_ed])
         #popt, pcov = curve_fit(func, 1e3*timedata[indices[1:-1]], np.delete(rho, [22,30], 0)[1:-1])
@@ -2731,7 +2732,160 @@ class ITB_Analysis:
         #return 1e3*timedata[:idx_time_period], rho_deleted, np.diff(voltdata_array_deleted)
         return 1e3*timedata[:idx_time_period], rho_deleted, voltdata_array_deleted
 
-    def normalize_highK_w_gradTe(self, t_st, t_ed, mod_freq):
+    def ana_plot_pci_condAV_MECH(self, t_st, t_ed, mod_freq):
+        data = AnaData.retrieve('ece_fast', self.ShotNo, 1)
+        r = data.getDimData('R')
+        vnum = data.getValNo()
+        t_ece = data.getDimData('Time')
+        Te = data.getValData('Te')
+
+        data = AnaData.retrieve('pci_profs', self.ShotNo, 1)
+
+        # 次元 'R' のデータを取得 (要素数137 の一次元配列(numpy.Array)が返ってくる)
+        #r = data.getDimData('R')
+        dnum = data.getDimNo()
+        for i in range(dnum):
+            print(i, data.getDimName(i), data.getDimUnit(i))
+        vnum = data.getValNo()
+        for i in range(vnum):
+            print(i, data.getValName(i), data.getValUnit(i))
+        #r_unit = data.getDimUnit('m')
+        t = data.getDimData('time')
+        reff_a99 = data.getDimData('reff/a99')
+        ntilde_pci = data.getValData(0)
+        v_pci = data.getValData(1)
+        #cosv_pci = data.getValData(2)
+        #fig = plt.figure(figsize=(12,6), dpi=150)
+        #plt.pcolormesh(t, reff_a99, ntilde_pci.T, cmap='jet')
+        #plt.xlim(4.0, 4.65)
+        #plt.show()
+
+        data_pci_sdens_rvt = AnaData.retrieve('pci_sdens_rvt', self.ShotNo, 1)
+        data_pci_sdens_rkt = AnaData.retrieve('pci_sdens_rkt', self.ShotNo, 1)
+        t_pci_sdens_rvt = data_pci_sdens_rvt.getDimData('time')
+        t_pci_sdens_rkt = data_pci_sdens_rkt.getDimData('time')
+        v_pci_sdens_rvt = data_pci_sdens_rvt.getDimData('v')
+        k_pci_sdens_rkt = data_pci_sdens_rkt.getDimData('k')
+        reff_a99_pci_sdens_rvt = data_pci_sdens_rvt.getDimData('reff/a99')
+        reff_a99_pci_sdens_rkt = data_pci_sdens_rkt.getDimData('reff/a99')
+        sdens_rvt = data_pci_sdens_rvt.getValData(0)
+        sdens_rkt = data_pci_sdens_rkt.getValData(0)
+        #i_time=1380
+        #images = []
+
+        idx_time_st = find_closest(t, t_st)
+        idx_time_ed = find_closest(t, t_ed)
+        idx_time_period = find_closest(t, t_st + 1/mod_freq) - idx_time_st
+        i_wave = np.int(Decimal(str(mod_freq))*(Decimal(str(t_ed))-Decimal(str(t_st))))
+        ntilde_pci_condAV = ntilde_pci[idx_time_st:idx_time_ed].reshape(idx_time_period, i_wave, len(reff_a99)).T.mean(axis=1)
+        ntilde_pci_condAV_normalized = np.array(normalize_all_columns_np(ntilde_pci_condAV.T)).T
+        v_pci_condAV = v_pci[idx_time_st:idx_time_ed].reshape(idx_time_period, i_wave, len(reff_a99)).T.mean(axis=1)
+
+        '''
+        title = 'PCI(ntilde), #%d, %.2fs-%.2fs' % (self.ShotNo, t_st, t_ed)
+        #plt.pcolormesh(t[:idx_time_period] - t[0], reff_a99, ntilde_pci_condAV, cmap='jet')
+        plt.pcolormesh(t[:idx_time_period] - t[0], reff_a99, ntilde_pci_condAV_normalized, cmap='jet')
+        plt.xlabel('Time [s]')
+        plt.ylabel('reff/a99')
+        plt.ylim(-1.2, 1.2)
+        plt.title(title)
+        #plt.show()
+        filename = 'pci_condAV_normalized_%d.png' % (self.ShotNo)
+        plt.savefig(filename)
+        '''
+
+        '''
+        i_pci=133
+        label = 'reff/a99=%.2f' % reff_a99[i_pci]
+        #plt.plot(t[:idx_time_period] - t[0],  ntilde_pci_condAV[i_pci], label=label)
+        plt.plot(t[:idx_time_period] - t[0],  ntilde_pci_condAV_normalized[i_pci], label=label)
+        i_pci=143
+        label = 'reff/a99=%.2f' % reff_a99[i_pci]
+        #plt.plot(t[:idx_time_period] - t[0],  ntilde_pci_condAV[i_pci], label=label)
+        plt.plot(t[:idx_time_period] - t[0],  ntilde_pci_condAV_normalized[i_pci], label=label)
+        i_pci=153
+        label = 'reff/a99=%.2f' % reff_a99[i_pci]
+        #plt.plot(t[:idx_time_period] - t[0],  ntilde_pci_condAV[i_pci], label=label)
+        plt.plot(t[:idx_time_period] - t[0],  ntilde_pci_condAV_normalized[i_pci], label=label)
+        plt.xlabel('Time [s]')
+        plt.ylabel('ntilde')
+        plt.title(title)
+        plt.legend()
+        plt.show()
+        '''
+        '''
+        plt.figure(figsize=(10, 6), dpi=150)
+        plt.title(title)
+        plt.plot(reff_a99, ntilde_pci_condAV + 50000*np.arange(25))
+        plt.grid(axis='x', which='both')
+        plt.xlabel('reff/a99')
+        plt.ylabel('ntilde_pci(Bottom:0s, Top:25ms)')
+        filename = 'pci_condAV_%d.png' % (self.ShotNo)
+        #plt.savefig(filename)
+        plt.show()
+        '''
+
+        sdens_rkt_condAV = sdens_rkt[idx_time_st:idx_time_ed].reshape(idx_time_period, i_wave, len(reff_a99_pci_sdens_rkt), len(k_pci_sdens_rkt)).mean(axis=1)
+        sdens_rvt_condAV = sdens_rvt[idx_time_st:idx_time_ed].reshape(idx_time_period, i_wave, len(reff_a99_pci_sdens_rvt), len(v_pci_sdens_rvt)).mean(axis=1)
+
+        #plt.imshow(sdens_rkt_condAV[10], cmap='jet')
+        '''
+        plt.pcolormesh( reff_a99, k_pci_sdens_rkt, sdens_rkt_condAV[10].T, cmap='jet')
+        plt.show()
+        plt.pcolormesh( reff_a99, v_pci_sdens_rvt, sdens_rvt_condAV[10].T, cmap='jet')
+        plt.show()
+        '''
+        for i_time in range(idx_time_period):
+            fig, axarr = plt.subplots(5, 1, gridspec_kw={'wspace': 0, 'hspace': 0.25, 'height_ratios': [4,4,1,1,1]}, figsize=(8, 11), dpi=150,
+                                      sharex=False)
+            # pp.set_clim(1e1, 1e3)
+            axarr[1].set_xlabel('reff/a99', fontsize=10)
+            axarr[0].set_ylabel('k [1/mm]', fontsize=10)
+            axarr[1].set_ylabel('v [km/s]', fontsize=10)
+            axarr[0].tick_params(which='both', axis='both', right=True, top=True, left=True, bottom=True, labelsize=8)
+            axarr[1].tick_params(which='both', axis='both', right=True, top=True, left=True, bottom=True, labelsize=8)
+            axarr[0].set_title('#%d, t=%.3fsec' % (self.ShotNo, t_pci_sdens_rkt[i_time]-t_pci_sdens_rkt[0]), fontsize=20, loc='left')
+            mappable0 = axarr[0].pcolormesh(reff_a99_pci_sdens_rkt, k_pci_sdens_rkt, sdens_rkt_condAV[i_time].T, cmap='jet', norm=LogNorm(vmin=1e3, vmax=1e5))
+            mappable1 = axarr[1].pcolormesh(reff_a99_pci_sdens_rvt, v_pci_sdens_rvt, sdens_rvt_condAV[i_time].T, cmap='jet', norm=LogNorm(vmin=1e-2, vmax=1e0))
+            pp0 = fig.colorbar(mappable0, ax=axarr[0], orientation="vertical", pad=0.01)
+            pp1 = fig.colorbar(mappable1, ax=axarr[1], orientation="vertical", pad=0.01)
+            pp0.set_label('PSD', fontname="Arial", fontsize=10)
+            pp1.set_label('PSD', fontname="Arial", fontsize=10)
+            #plt.show()
+
+            axarr[2].set_ylabel('reff/a99', fontsize=10)
+            axarr[3].set_ylabel('reff/a99', fontsize=10)
+            axarr[4].set_ylabel('Te [keV]', fontsize=10)
+            axarr[4].set_xlabel('Time [sec]', fontsize=10)
+            axarr[3].set_xlim(0.0, 0.0250)
+            axarr[2].set_xlim(0.0, 0.0250)
+            axarr[2].tick_params(which='both', axis='both', right=True, top=True, left=True, bottom=True, labelsize=8)
+            axarr[3].tick_params(which='both', axis='both', right=True, top=True, left=True, bottom=True, labelsize=8)
+            im0 = axarr[2].pcolormesh(t[:idx_time_period]-t[0], reff_a99, ntilde_pci_condAV, cmap='jet',
+                                      norm=LogNorm(vmin=1e5, vmax=1e6))
+            im1 = axarr[3].pcolormesh(t[:idx_time_period]-t[0], reff_a99, v_pci_condAV, cmap='bwr', vmin=-2, vmax=2)
+            pp0 = fig.colorbar(im0, ax=axarr[2], pad=0.01)
+            pp1 = fig.colorbar(im1, ax=axarr[3], pad=0.01)
+            pp0.set_label('ntilde[a.u.]', fontname="Arial", fontsize=10)
+            pp1.set_label('v [km/sec]', fontname="Arial", fontsize=10)
+
+            arr_erace = [5, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 24, 25, 26, 27, 28, 32, 33, 44,
+                         45, 46, 47, 50, 51, 58]
+            arr_erace = [5, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 24, 25]
+            axarr[4].plot(t_ece, Te[:, arr_erace])
+            axarr[4].set_ylim(0, 5)
+            axarr[4].set_xlim(t_st, t_st+0.03)
+            axarr[4].tick_params(which='both', axis='both', right=True, top=True, left=True, bottom=True, labelsize=8)
+            axarr[2].axvline(t_pci_sdens_rkt[i_time]-t_pci_sdens_rkt[0], color='red')
+            axarr[3].axvline(t_pci_sdens_rkt[i_time]-t_pci_sdens_rvt[0], color='red')
+            axarr[4].axvline(t_pci_sdens_rkt[i_time]-t_pci_sdens_rkt[0]+t_st, color='red')
+            # plt.savefig("fmp_psd_No%d.png" % self.ShotNo)
+            filename = 'pci_condAV_k_v_reff_time_%d_t%.4f.png' % (self.ShotNo, t_pci_sdens_rkt[i_time]-t_pci_sdens_rkt[0])
+            plt.savefig(filename)
+            plt.close()
+
+
+    def normalize_highK_w_gradTe(self, t_st, t_ed, mod_freq, isSaveData=False):
         timedata_highK, rho_highK, data_highK = self.ana_plot_highK_condAV_MECH(t_st, t_ed, mod_freq)
         #timedata_gradTe, rho_gradTe, data_gradTe = self.ana_plot_radh_condAV_MECH(t_st, t_ed, mod_freq)
         timedata_gradTe, rho_gradTe, data_gradTe = self.ana_plot_radhpxi_calThom_condAV_MECH(t_st, t_ed, mod_freq)
@@ -2742,7 +2896,8 @@ class ITB_Analysis:
         data_highK_extended = f(timedata_gradTe_)
         #plt.plot(timedata_highK_, data_highK)
         #plt.plot(timedata_gradTe_, data_highK_extended+0.001)
-        i_rho =  19
+        print(rho_gradTe)
+        i_rho =19
         label_gradTe = 'r/a=%.3f)' % rho_gradTe[i_rho]
         plt.plot(timedata_gradTe_, data_gradTe[:, i_rho], label='gradTe(' + label_gradTe)
         label_gradTe = 'r/a=%.3f)' % rho_gradTe[i_rho+1]
@@ -2772,6 +2927,16 @@ class ITB_Analysis:
         plt.xlabel('gradTe')
         plt.ylabel('e-scale turb.')
         plt.show()
+        if isSaveData:
+            #t_data_gradTe = np.stack((timedata_gradTe_, normalize_0_1(-1*data_gradTe[:, i_rho])))
+            #t_data_highK = np.stack((timedata_gradTe_, normalize_0_1(data_highK_extended)))
+            data_gradTe_highK = np.stack((-1*data_gradTe[:, i_rho], data_highK_extended))
+            filename = '_%d.txt' % (self.ShotNo)
+            filename_gradTe = '_ra%.3f' %  rho_gradTe[i_rho]
+            filename_highK = '_ra%.3f' % rho_highK
+            #np.savetxt('time_gradTe' + filename_gradTe + filename, t_data_gradTe.T)
+            #np.savetxt('time_highK' + filename_highK + filename, t_data_highK.T)
+            np.savetxt('gradTe_highK' + filename_gradTe + filename_highK + filename, data_gradTe_highK.T)
 
     def simulate_heat_propagation(self, t, y):
         y_2D = np.zeros((2*len(y), 20))
@@ -2813,7 +2978,7 @@ class ITB_Analysis:
         #plt.savefig(filename)
         plt.show()
 
-    def ana_plot_ece(self):
+    def ana_plot_ece(self, isSaveData=False):
         data = AnaData.retrieve('ece_fast', self.ShotNo, 1)
         #data = AnaData.retrieve('ece_fast_calThom', self.ShotNo, 1)
 
@@ -2822,6 +2987,8 @@ class ITB_Analysis:
             print(i, data.getDimName(i), data.getDimUnit(i))
         # 次元 'R' のデータを取得 (要素数137 の一次元配列(numpy.Array)が返ってくる)
         r = data.getDimData('R')
+        rho = data.getValData('rho_vacuum')
+        print(rho[0])
         vnum = data.getValNo()
         for i in range(vnum):
             print(i, data.getValName(i), data.getValUnit(i))
@@ -2906,12 +3073,14 @@ class ITB_Analysis:
             ne_bar = data.getValData(i)
             axarr[0].plot(t_fir, ne_bar)
         f.align_labels()
-        plt.savefig("timetrace_ECE_FIR_No%d.png" % self.ShotNo)
+        #plt.savefig("timetrace_ECE_FIR_No%d.png" % self.ShotNo)
         plt.show()
 
-        #t_data_ece = np.vstack((t, Te[:, arr_erace].T))
-        #filename = '_%d.txt' % (self.ShotNo)
-        #np.savetxt('time_ECE' + filename, t_data_ece.T)
+        if isSaveData:
+            #t_data_ece = np.vstack((t, Te[:, arr_erace].T))
+            t_data_ece = np.vstack((t, Te.T))
+            filename = '_%d.txt' % (self.ShotNo)
+            np.savetxt('time_ECE' + filename, t_data_ece.T)
 
 
     def ana_plot_discharge_waveform_basic(self):
@@ -3892,8 +4061,9 @@ def func(x, a, b):
 if __name__ == "__main__":
     start = time.time()
     #test_laplace_asymmetric()
-    #for i in range(183379, 183409):#185798, 185839):#
-    #    itba = ITB_Analysis(i, i+1)
+    #for i in range(183380, 183401):#185798, 185839):#
+    #    itba = ITB_Analysis(i, i+2)
+    #    itba.ana_plot_pci_condAV_MECH(t_st=4.5, t_ed=5.10, mod_freq=40)
     #    itba.ana_plot_highK_condAV_MECH(t_st=5.000, t_ed=6.00, mod_freq=40)
     #    print(i)
     #    itba.plot_HSTS()
@@ -3905,7 +4075,7 @@ if __name__ == "__main__":
     #ana_findpeaks_shotarray()
     #ana_delaytime_shotarray()
     #itba = ITB_Analysis(int(ShotNo))
-    itba = ITB_Analysis(183400, 169717)#167088), 163958
+    itba = ITB_Analysis(183390, 169717)#167088), 163958
     #itba.conditional_average_highK_mppk(t_st=4.3, t_ed=4.60)
     #ShotNos = np.arange(178939, 178970)
     #ShotNos = 169690 + np.array([2,3,8,9,17,18,20,22,24,25])
@@ -3915,19 +4085,20 @@ if __name__ == "__main__":
     #itba.ana_plot_highSP_TS(1)
     #itba.plot_HSTS()
     #itba.get_ne(target_t=4.4, target_r=0.2131075)
-    #itba.ana_plot_ece()
+    #itba.ana_plot_ece(isSaveData=False)
+    #itba.ana_plot_discharge_waveform4ITB(isSaveData=False)
     #itba.ana_plot_radh(t_st=3.30, t_ed=5.30)
     #itba.ana_plot_radh_highK(t_st=3.3, t_ed=5.00)
     #itba.ana_plot_highK_condAV_MECH(t_st=3.300, t_ed=4.30, mod_freq=40)
-    itba.normalize_highK_w_gradTe(t_st=3.30, t_ed=4.30, mod_freq=40)
-    #itba.ana_plot_discharge_waveform4ITB(isSaveData=False)
+    #itba.normalize_highK_w_gradTe(t_st=3.30, t_ed=4.30, mod_freq=40, isSaveData=True)
     #itba.ana_plot_radh_condAV_MECH(t_st=3.10, t_ed=4.0, mod_freq=40)
-    #itba.ana_plot_radh_condAV_MECH(t_st=3.40, t_ed=4.3, mod_freq=40)
+    #itba.ana_plot_radh_condAV_MECH(t_st=4.30, t_ed=5.3, mod_freq=40)
     #itba.ana_plot_radhpxi_calThom_condAV_MECH(t_st=3.30, t_ed=4.3, mod_freq=40)
     #itba.ana_plot_radh_condAV_MECH(t_st=4.30, t_ed=5.3, mod_freq=40)
     #itba.plot_TS()
     #itba.plot_2TS()
     #itba.ana_plot_pci_test()
+    itba.ana_plot_pci_condAV_MECH(t_st=4.5, t_ed=5.10, mod_freq=40)
     #itba.ana_plot_pci_fft()
     #itba.conditional_average_highK(t_st=4.3, t_ed=4.6)
     #itba.combine_shots_data()
