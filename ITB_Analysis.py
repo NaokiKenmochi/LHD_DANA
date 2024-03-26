@@ -108,7 +108,7 @@ class ITB_Analysis:
 
 
         plt.savefig("Thomson_Te_ne_No%d.png" % self.ShotNo)
-        #plt.show()
+        plt.show()
         #plt.close()
 
     def ana_plot_allTS_sharex(self):
@@ -1725,7 +1725,7 @@ class ITB_Analysis:
         data_radhinfo = AnaData.retrieve(data_name_info, self.ShotNo, 1)
         r = data_radhinfo.getValData('rho')
 
-        i_ch = 13#14#13#9
+        i_ch = 20#14#13#9
         timedata = TimeData.retrieve(data_name_pxi, self.ShotNo, 1, 1).get_val()
         voltdata_array = np.zeros((len(timedata), 32))
         for i in range(32):
@@ -1853,10 +1853,10 @@ class ITB_Analysis:
     def combine_shots_data(self):
         #arr_peak_selection =[0,1,2,3,4,10,11] #169710
         #arr_toff = [-2e-4, 0, -2e-4, -3e-4, -3e-4, -2e-4, -1e-4]    #169710
-        arr_peak_selection = [0,2,3,5,6,7]#169714
-        arr_toff = 1e-4*np.array([-1.2,0,-1,-0.5,-1,-1])    #169714
-        #arr_peak_selection =[2,3,4] #169692
-        #arr_toff = 1e-4*np.array([-1,-3.5,-4])    #169692
+        #arr_peak_selection = [0,2,3,5,6,7]#169714
+        #arr_toff = 1e-4*np.array([-1.2,0,-1,-0.5,-1,-1])    #169714
+        arr_peak_selection =[2,3,4] #169692
+        arr_toff = 1e-4*np.array([-1,-3.5,-4])    #169692
         #arr_peak_selection =[5,7,10] #169698
         #arr_toff = 1e-4*np.array([-2,-1,0])    #169698
         #arr_peak_selection = [3,4,10] #169707
@@ -1864,10 +1864,10 @@ class ITB_Analysis:
         buf_highK, buf_mp, buf_radh, buf_t_highK, buf_t_mp, buf_t_radh, timedata_peaks_ltd, _, _ = self.conditional_average_highK(t_st=4.3, t_ed=4.6, arr_peak_selection=arr_peak_selection, arr_toff=arr_toff)
         #arr_peak_selection = [1,2,5,6,7,8]#169712
         #arr_toff = [-2e-4, -3.5e-4, -3.5e-4, -1.5e-4, -2.5e-4, 0.5e-4]    #169712
-        arr_peak_selection = [0,6,7,8,9,10,12,13]#169715
-        arr_toff = 1e-4*np.array([-3,-1,0,-0.5,-1,-3,-2,-0.5])    #169715
-        #arr_peak_selection =[1,2,8] #169693
-        #arr_toff = 1e-4*np.array([-3,-2,-2])    #169693
+        #arr_peak_selection = [0,6,7,8,9,10,12,13]#169715
+        #arr_toff = 1e-4*np.array([-3,-1,0,-0.5,-1,-3,-2,-0.5])    #169715
+        arr_peak_selection =[1,2]#,8] #169693
+        arr_toff = 1e-4*np.array([-3,-2])#,-2])    #169693
         #arr_peak_selection =[5,7,10] #169698
         #arr_toff = 1e-4*np.array([-2,-1,0])    #169698
         #arr_peak_selection = [10] #169699
@@ -2610,7 +2610,7 @@ class ITB_Analysis:
             #yf = fftpack.rfft(voltdata[idx_time_st:idx_time_ed]) / (int(len(voltdata[idx_time_st:idx_time_ed]) / 2))
             yf = fftpack.rfft(voltdata_condAV) / (int(len(voltdata_condAV) / 2))
             yf2 = np.copy(yf)
-            yf2[(freq > fs)] = 0
+            #yf2[(freq > fs)] = 0
             yf2[(freq < 0)] = 0
             #y2 = np.real(fftpack.irfft(yf2) * (int(len(voltdata[idx_time_st:idx_time_ed]) / 2)))
             y2 = np.real(fftpack.irfft(yf2) * (int(len(voltdata_condAV) / 2)))
@@ -2641,19 +2641,28 @@ class ITB_Analysis:
         rho_deleted = np.delete(rho, [22,23,25,30,31], 0)
         #indices = find_closest_indices(voltdata_array_deleted[int(idx_time_period/10):int(1*idx_time_period/5.0),:], 0.5)
         #indices = find_closest_indices(voltdata_array_deleted[:int(1*idx_time_period/6),:], 0.5)
-        #indices = find_first_greater_indices(voltdata_array_deleted, 0.5)   #Use for half point fitting
-        indices = np.argmax(voltdata_array_deleted, axis=0)   #Use for maximum point fitting
+        indices = find_first_greater_indices(voltdata_array_deleted, 0.5)   #Use for half point fitting
+        #indices = np.argmax(voltdata_array_deleted, axis=0)   #Use for maximum point fitting
         #indices += int(idx_time_period/10)
         #indices = find_closest_indices(voltdata_array_deleted[:int(2*idx_time_period/3),:], 0.5)
         #indices = find_closest_indices(voltdata_array_deleted[:int(2*idx_time_period/8),:], 0.5)
         #print(voltdata_array_deleted[indices, np.arange(len(indices))])
-        indice_st = 6
+        indice_st = 0
         indice_ed = -5
         popt, pcov = curve_fit(func, 1e3*timedata[indices[indice_st:indice_ed]], rho_deleted[indice_st:indice_ed])
         #popt, pcov = curve_fit(func, 1e3*timedata[indices[1:-1]], np.delete(rho, [22,30], 0)[1:-1])
         perr = np.sqrt((np.diag(pcov)))
         print(popt)
         print(perr)
+        '''
+        popt_2, pcov_2 = curve_fit(func, rho_deleted[indice_st:indice_ed], 1e3*timedata[indices[indice_st:indice_ed]])
+        #popt, pcov = curve_fit(func, 1e3*timedata[indices[1:-1]], np.delete(rho, [22,30], 0)[1:-1])
+        perr_2 = np.sqrt((np.diag(pcov)))
+        print(popt_2)
+        print(perr_2)
+        print(1/popt_2)
+        print(1/perr_2)
+        '''
 
         fig = plt.figure(figsize=(8,6), dpi=150)
         title = 'Low-pass(<%dHz), #%d, %.2fs-%.2fs\nd(reff/a99)/dt=%.9f+-%.9f' % (fs, self.ShotNo, t_st, t_ed, popt[0], perr[0])
@@ -2666,10 +2675,11 @@ class ITB_Analysis:
         #plt.pcolormesh(1e3*timedata[:idx_time_period], rho, voltdata_array.T, cmap='jet')
         #plt.pcolormesh(1e3*timedata[:idx_time_period], np.delete(rho, [22,30], 0), np.delete(voltdata_array, [22,30], 1).T, cmap='jet')
         plt.pcolormesh(1e3*timedata[:idx_time_period], rho_deleted, voltdata_array_deleted.T, cmap='jet')
-        plt.plot(1e3*timedata[indices], rho_deleted, 'b.')
-        plt.plot(1e3*timedata[indices[indice_st:indice_ed]], rho_deleted[indice_st:indice_ed], 'r.')
+        #plt.plot(1e3*timedata[indices], rho_deleted, 'b.')
+        #plt.plot(1e3*timedata[indices[indice_st:indice_ed]], rho_deleted[indice_st:indice_ed], 'r.')
         #plt.plot(1e3*timedata[indices], func(1e3*timedata[indices], *popt), 'b')
-        plt.plot(1e3*timedata[indices[indice_st:indice_ed]], func(1e3*timedata[indices[indice_st:indice_ed]], *popt), 'r')
+        #plt.plot(1e3*timedata[indices[indice_st:indice_ed]], func(1e3*timedata[indices[indice_st:indice_ed]], *popt), 'r')
+        #plt.plot(1e3*timedata[indices[indice_st:indice_ed]], func(1e3*timedata[indices[indice_st:indice_ed]], 1/popt_2[0], -popt_2[1]/popt_2[0]), 'blue')
         #plt.pcolormesh(t, r, Te.T)
         #plt.pcolormesh(t, r[1:-1], (Te[:, 2:]-Te[:, 1:-1]-Te[:, 1:-1]+Te[:, :-2]).T, cmap='bwr')
         cb = plt.colorbar()
@@ -2684,12 +2694,29 @@ class ITB_Analysis:
         #plt.ylabel("R [m]", fontsize=22)
         plt.ylabel("reff/a99", fontsize=22)
         plt.tick_params(which='both', axis='both', right=True, top=True, left=True, bottom=True, labelsize=22)
-        filename = "radhpxi_pcolormesh_normalized01_t%dto%dms_No%d_v2.png" %(int(t_st*1000), int(t_ed*1000), self.ShotNo)
+        #filename = "radhpxi_pcolormesh_normalized01_t%dto%dms_No%d_v2.png" %(int(t_st*1000), int(t_ed*1000), self.ShotNo)
+        filename = "radhpxi_pcolormesh_normalized01_t%dto%dms_No%d_wofitting.png" %(int(t_st*1000), int(t_ed*1000), self.ShotNo)
         #plt.savefig(filename)
         plt.show()
         #filename = '_t%.2fto%.2f_%d.txt' % (t_st, t_ed, self.ShotNo)
         #np.savetxt('radh_array' + filename, voltdata_array)
         #np.savetxt('radh_timedata' + filename, timedata[idx_time_st:idx_time_ed])
+        i_reff_1 = 1
+        i_reff_2 = 11
+        i_reff_3 = 21
+        title = 'Low-pass(<%dHz), #%d, %.2fs-%.2fs' % (fs, self.ShotNo, t_st, t_ed)
+        plt.title(title)
+        label_1 = 'reff/a99=%.2f' % rho_deleted[i_reff_1]
+        label_2 = 'reff/a99=%.2f' % rho_deleted[i_reff_2]
+        label_3 = 'reff/a99=%.2f' % rho_deleted[i_reff_3]
+        plt.plot(1e3*(timedata[:idx_time_period]-timedata[0]), voltdata_array_deleted[:, i_reff_1], label=label_1)
+        plt.plot(1e3*(timedata[:idx_time_period]-timedata[0]), voltdata_array_deleted[:, i_reff_2], label=label_2)
+        plt.plot(1e3*(timedata[:idx_time_period]-timedata[0]), voltdata_array_deleted[:, i_reff_3], label=label_3)
+        plt.legend()
+        plt.show()
+        combined_voltdata_array_deleted = np.column_stack((1e3*(timedata[:idx_time_period]-timedata[0]),voltdata_array_deleted[:, i_reff_1],voltdata_array_deleted[:, i_reff_2],voltdata_array_deleted[:, i_reff_3],))
+        file_title = 'time_normalized_Te_ra%.2f_ra%.2f_ra%.2f_sn%d.txt' % (rho_deleted[i_reff_1],rho_deleted[i_reff_2],rho_deleted[i_reff_3],self.ShotNo)
+        np.savetxt(file_title,combined_voltdata_array_deleted)
 
         plt.pcolormesh(1e3*timedata[:idx_time_period], rho_deleted[:-1], (np.diff(voltdata_array_deleted)).T, cmap='bwr', vmin=-0.1, vmax=0.1)
         cb = plt.colorbar()
@@ -2897,7 +2924,7 @@ class ITB_Analysis:
         #plt.plot(timedata_highK_, data_highK)
         #plt.plot(timedata_gradTe_, data_highK_extended+0.001)
         print(rho_gradTe)
-        i_rho =19
+        i_rho =1
         label_gradTe = 'r/a=%.3f)' % rho_gradTe[i_rho]
         plt.plot(timedata_gradTe_, data_gradTe[:, i_rho], label='gradTe(' + label_gradTe)
         label_gradTe = 'r/a=%.3f)' % rho_gradTe[i_rho+1]
@@ -2928,15 +2955,15 @@ class ITB_Analysis:
         plt.ylabel('e-scale turb.')
         plt.show()
         if isSaveData:
-            #t_data_gradTe = np.stack((timedata_gradTe_, normalize_0_1(-1*data_gradTe[:, i_rho])))
+            t_data_gradTe = np.stack((timedata_gradTe_, normalize_0_1(-1*data_gradTe[:, i_rho])))
             #t_data_highK = np.stack((timedata_gradTe_, normalize_0_1(data_highK_extended)))
             data_gradTe_highK = np.stack((-1*data_gradTe[:, i_rho], data_highK_extended))
             filename = '_%d.txt' % (self.ShotNo)
             filename_gradTe = '_ra%.3f' %  rho_gradTe[i_rho]
             filename_highK = '_ra%.3f' % rho_highK
-            #np.savetxt('time_gradTe' + filename_gradTe + filename, t_data_gradTe.T)
+            np.savetxt('time_gradTe' + filename_gradTe + filename, t_data_gradTe.T)
             #np.savetxt('time_highK' + filename_highK + filename, t_data_highK.T)
-            np.savetxt('gradTe_highK' + filename_gradTe + filename_highK + filename, data_gradTe_highK.T)
+            #np.savetxt('gradTe_highK' + filename_gradTe + filename_highK + filename, data_gradTe_highK.T)
 
     def simulate_heat_propagation(self, t, y):
         y_2D = np.zeros((2*len(y), 20))
@@ -3052,14 +3079,14 @@ class ITB_Analysis:
         axarr[1].set_ylabel(r'$T_e$ [keV]', fontsize=18)
         axarr[1].set_xlabel('Time [sec]', fontsize=18)
         axarr[0].set_ylabel(r'$n_eL\ [10^{19}m^{-2}]$', fontsize=14)
-        axarr[1].set_ylim(0, 8)
+        axarr[1].set_ylim(0, 14)
         #axarr[0].set_xlim(4.3, 4.8)
         #axarr[0].set_xlim(2.8, 6.0)
         #axarr[0].set_xlim(3.3, 5.3)
         #axarr[1].set_xlim(4.35, 4.55)
         #axarr[0].set_xlim(4.4, 4.6)
         #axarr[0].set_xlim(3, 6)
-        axarr[1].set_xlim(3, 6.5)
+        axarr[1].set_xlim(3, 10)    #timerange
         #axarr[0].set_ylim(0, )
         #axarr[1].set_ylim(0, )
         #axarr[0].set_xticklabels([])
@@ -3073,7 +3100,57 @@ class ITB_Analysis:
             ne_bar = data.getValData(i)
             axarr[0].plot(t_fir, ne_bar)
         f.align_labels()
-        #plt.savefig("timetrace_ECE_FIR_No%d.png" % self.ShotNo)
+        plt.savefig("timetrace_ECE_FIR_No%d.png" % self.ShotNo)
+        plt.show()
+
+        t_common = np.linspace(3.3, 9.3, 6000)
+        i_ch=65
+        ne_bar = data.getValData(6)
+        interp_Te = interp1d(t, Te[:,i_ch])
+        interp_ne = interp1d(t_fir, ne_bar)
+        Te_interpolated = interp_Te(t_common)
+        ne_interpolated = interp_ne(t_common)
+
+        #plt.plot(t_common, Te_interpolated)
+        #plt.show()
+        #plt.plot(t_common, ne_interpolated)
+        #plt.show()
+        plt.plot(ne_interpolated, Te_interpolated)
+        i_ch=0
+        interp_Te = interp1d(t, Te[:, i_ch])
+        Te_interpolated = interp_Te(t_common)
+        label_rho = rho[0, i_ch]
+        plt.plot(ne_interpolated, Te_interpolated, label=label_rho)
+        i_ch=10
+        interp_Te = interp1d(t, Te[:,i_ch])
+        Te_interpolated = interp_Te(t_common)
+        label_rho = rho[0, i_ch]
+        plt.plot(ne_interpolated, Te_interpolated, label=label_rho)
+        i_ch=20
+        interp_Te = interp1d(t, Te[:,i_ch])
+        Te_interpolated = interp_Te(t_common)
+        label_rho = rho[0, i_ch]
+        plt.plot(ne_interpolated, Te_interpolated, label=label_rho)
+        i_ch=30
+        interp_Te = interp1d(t, Te[:,i_ch])
+        Te_interpolated = interp_Te(t_common)
+        label_rho = rho[0, i_ch]
+        plt.plot(ne_interpolated, Te_interpolated, label=label_rho)
+        i_ch=40
+        interp_Te = interp1d(t, Te[:,i_ch])
+        Te_interpolated = interp_Te(t_common)
+        label_rho = rho[0, i_ch]
+        plt.plot(ne_interpolated, Te_interpolated, label=label_rho)
+        i_ch=60
+        interp_Te = interp1d(t, Te[:,i_ch])
+        Te_interpolated = interp_Te(t_common)
+        label_rho = rho[0, i_ch]
+        plt.plot(ne_interpolated, Te_interpolated, label=label_rho)
+        plt.title(self.ShotNo, fontsize=14, loc='right')
+        plt.xlabel(r'$n_eL\ [10^{19}m^{-2}]$', fontsize=14)
+        plt.ylabel("Te[keV]", fontsize=14)
+        plt.legend()
+        plt.savefig("Te_vs_neL_No%d.png" % self.ShotNo)
         plt.show()
 
         if isSaveData:
@@ -3198,7 +3275,7 @@ class ITB_Analysis:
         axarr[0].plot(t_Wp, data_wp_, color='black')
         axarr[1].plot(t_fir, data_fir_, color='red')
         axarr[2].plot(t_ip, data_ip_, label='Ip', color='blue')
-        axarr[0].set_xlim(3, 7)
+        axarr[0].set_xlim(3, 10)    #timerange
         axarr[0].set_ylim(0,)
         axarr[1].set_ylim(0,)
         axarr[3].set_ylim(0,)
@@ -4075,7 +4152,7 @@ if __name__ == "__main__":
     #ana_findpeaks_shotarray()
     #ana_delaytime_shotarray()
     #itba = ITB_Analysis(int(ShotNo))
-    itba = ITB_Analysis(183390, 169717)#167088), 163958
+    itba = ITB_Analysis(188072, 169693)#167088), 163958
     #itba.conditional_average_highK_mppk(t_st=4.3, t_ed=4.60)
     #ShotNos = np.arange(178939, 178970)
     #ShotNos = 169690 + np.array([2,3,8,9,17,18,20,22,24,25])
@@ -4085,20 +4162,21 @@ if __name__ == "__main__":
     #itba.ana_plot_highSP_TS(1)
     #itba.plot_HSTS()
     #itba.get_ne(target_t=4.4, target_r=0.2131075)
-    #itba.ana_plot_ece(isSaveData=False)
-    #itba.ana_plot_discharge_waveform4ITB(isSaveData=False)
+    itba.ana_plot_ece(isSaveData=False)
+    itba.ana_plot_discharge_waveform4ITB(isSaveData=False)
     #itba.ana_plot_radh(t_st=3.30, t_ed=5.30)
     #itba.ana_plot_radh_highK(t_st=3.3, t_ed=5.00)
     #itba.ana_plot_highK_condAV_MECH(t_st=3.300, t_ed=4.30, mod_freq=40)
     #itba.normalize_highK_w_gradTe(t_st=3.30, t_ed=4.30, mod_freq=40, isSaveData=True)
     #itba.ana_plot_radh_condAV_MECH(t_st=3.10, t_ed=4.0, mod_freq=40)
     #itba.ana_plot_radh_condAV_MECH(t_st=4.30, t_ed=5.3, mod_freq=40)
+    #itba.ana_plot_radh_condAV_MECH(t_st=4.0, t_ed=5.5, mod_freq=11)
     #itba.ana_plot_radhpxi_calThom_condAV_MECH(t_st=3.30, t_ed=4.3, mod_freq=40)
-    #itba.ana_plot_radh_condAV_MECH(t_st=4.30, t_ed=5.3, mod_freq=40)
+    #itba.ana_plot_radh_condAV_MECH(t_st=3.4, t_ed=4.3, mod_freq=40)
     #itba.plot_TS()
     #itba.plot_2TS()
     #itba.ana_plot_pci_test()
-    itba.ana_plot_pci_condAV_MECH(t_st=4.5, t_ed=5.10, mod_freq=40)
+    #itba.ana_plot_pci_condAV_MECH(t_st=4.5, t_ed=5.10, mod_freq=40)
     #itba.ana_plot_pci_fft()
     #itba.conditional_average_highK(t_st=4.3, t_ed=4.6)
     #itba.combine_shots_data()
