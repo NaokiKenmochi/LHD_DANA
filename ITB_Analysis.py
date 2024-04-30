@@ -1310,20 +1310,258 @@ class ITB_Analysis:
 
         return timedata_peaks
 
+
+    def condAV_pci_trigLowPassRadh(self, t_st=None, t_ed=None, arr_peak_selection=None, arr_toff=None, prom_min=None, prom_max=None, Mode_ece_radhpxi_calThom=None):
+        if Mode_ece_radhpxi_calThom:
+            data = AnaData.retrieve('ece_radhpxi_calThom', self.ShotNo, 1)
+            Te = data.getValData('Te')
+            r = data.getDimData('R')
+            timedata = data.getDimData('Time')  # TimeData.retrieve(data_name_pxi, self.ShotNo, 1, 1).get_val()
+        else:
+            data_name_pxi = 'RADHPXI'  # RADLPXI
+            data_name_info = 'radhinfo'  # radlinfo
+            data_radhinfo = AnaData.retrieve(data_name_info, self.ShotNo, 1)
+            r = data_radhinfo.getValData('R')
+            timedata = TimeData.retrieve(data_name_pxi, self.ShotNo, 1, 1).get_val()
+
+        data_name_info = 'radhinfo'  # radlinfo
+        data_radhinfo = AnaData.retrieve(data_name_info, self.ShotNo, 1)
+        t = data.getDimData('Time')
+
+        data_fast = AnaData.retrieve('pci_ch4_fft_fast', self.ShotNo, 1)
+
+        dnum = data_fast.getDimNo()
+        for i in range(dnum):
+            print(i, data.getDimName(i), data.getDimUnit(i))
+        vnum = data_fast.getValNo()
+        for i in range(vnum):
+            print(i, data_fast.getValName(i), data_fast.getValUnit(i))
+        t_pci_fast = data_fast.getDimData('Time')
+        Sxx_50to150kHz = data_fast.getValData('50-150(kHz)')
+        Sxx_150to500kHz = data_fast.getValData('150-500(kHz)')
+        Sxx_50to500kHz = data_fast.getValData('50-500(kHz)')
+
+
+        #r = data_radhinfo.getValData('rho')
+        #r = data_radhinfo.getValData('R')
+        rho = data_radhinfo.getValData('rho')
+        ch = data_radhinfo.getValData('pxi')
+
+        i_ch = 16#14#13#9
+        #voltdata_array = np.zeros((len(timedata), 32))
+        idx_time_st = find_closest(timedata, t_st)
+        idx_time_ed = find_closest(timedata, t_ed)
+        voltdata_array = np.zeros((len(timedata[idx_time_st:idx_time_ed]), 32))
+        voltdata_array_calThom = np.zeros((len(timedata[idx_time_st:idx_time_ed]), 32))
+
+
+        fs = 5e3#2e3#5e3
+        dt = timedata[1] - timedata[0]
+        freq = fftpack.fftfreq(len(timedata[idx_time_st:idx_time_ed]), dt)
+        #fig = plt.figure(figsize=(8,6), dpi=150)
+        for i in range(32):
+            #voltdata = VoltData.retrieve(data_name_pxi, self.ShotNo, 1, i+1).get_val()
+            if Mode_ece_radhpxi_calThom:
+                voltdata = Te[:,i]
+            else:
+                voltdata = VoltData.retrieve(data_name_pxi, self.ShotNo, 1, int(ch[i])).get_val()
+            '''
+            low-pass filter for voltdata
+            '''
+            yf = fftpack.rfft(voltdata[idx_time_st:idx_time_ed]) / (int(len(voltdata[idx_time_st:idx_time_ed]) / 2))
+            yf2 = np.copy(yf)
+            yf2[(freq > fs)] = 0
+            yf2[(freq < 0)] = 0
+            y2 = np.real(fftpack.irfft(yf2) * (int(len(voltdata[idx_time_st:idx_time_ed]) / 2)))
+            voltdata_array[:, i] = y2
+            voltdata_array[:, i] = normalize_0_1(y2)
+            if Mode_ece_radhpxi_calThom:
+                voltdata_array_calThom[:, i] = y2
+
+
+        #_, _, _, timedata_peaks_ltd_,_,_,_ = self.findpeaks_radh(t_st, t_ed, i_ch)
+        if Mode_ece_radhpxi_calThom:
+            peaks, prominences, timedata_peaks_ltd_ = self.findpeaks_radh(t_st, t_ed, i_ch, timedata[idx_time_st:idx_time_ed], voltdata_array, isCondAV=True, isPlot=True, Mode_find_peaks='avalanche20240403_ece', prom_min=prom_min, prom_max=prom_max)
+        else:
+            peaks, prominences, timedata_peaks_ltd_ = self.findpeaks_radh(t_st, t_ed, i_ch, timedata[idx_time_st:idx_time_ed], voltdata_array, isCondAV=True, isPlot=False, Mode_find_peaks='avalanche20240403', prom_min=prom_min, prom_max=prom_max)
+
+        #timedata_peaks_ltd = timedata_peaks_ltd_
+        if arr_peak_selection == None:
+            timedata_peaks_ltd = timedata_peaks_ltd_
+        else:
+            timedata_peaks_ltd = timedata_peaks_ltd_[arr_peak_selection]
+        #timedata_peaks_ltd -= arr_toff
+        print(len(timedata_peaks_ltd_))
+        t_st_condAV = 15e-3
+        t_ed_condAV = 25e-3#4e-3#6e-3#10e-3#
+        for i in range(len(timedata_peaks_ltd)):
+            if i == 0:
+                if Mode_ece_radhpxi_calThom:
+                    buf_radh = voltdata_array_calThom[find_closest(timedata[idx_time_st:idx_time_ed],
+                                                                   timedata_peaks_ltd[i] - t_st_condAV):find_closest(
+                        timedata[idx_time_st:idx_time_ed], timedata_peaks_ltd[i] + t_ed_condAV), :]
+                else:
+                    buf_radh = voltdata_array[find_closest(timedata[idx_time_st:idx_time_ed],
+                                                           timedata_peaks_ltd[i] - t_st_condAV):find_closest(
+                        timedata[idx_time_st:idx_time_ed], timedata_peaks_ltd[i] + t_ed_condAV), :]
+                buf_radh_ = voltdata_array[find_closest(timedata[idx_time_st:idx_time_ed], timedata_peaks_ltd[i]-t_st_condAV):find_closest(timedata[idx_time_st:idx_time_ed], timedata_peaks_ltd[i]+t_ed_condAV), :]
+                buf_t_radh = timedata[find_closest(timedata[idx_time_st:idx_time_ed], timedata_peaks_ltd[i]-t_st_condAV):find_closest(timedata[idx_time_st:idx_time_ed], timedata_peaks_ltd[i]+t_ed_condAV)] - timedata_peaks_ltd[i] + timedata[idx_time_st] - timedata[0]
+                buf_t_pci = t_pci_fast[find_closest(t_pci_fast, timedata_peaks_ltd[i]-t_st_condAV):find_closest(t_pci_fast, timedata_peaks_ltd[i]+t_ed_condAV)] - timedata_peaks_ltd[i]
+
+                buf_pci = Sxx_50to500kHz[find_closest(t_pci_fast, timedata_peaks_ltd[i]-t_st_condAV):find_closest(t_pci_fast, timedata_peaks_ltd[i]+t_ed_condAV)]
+
+            else:
+                try:
+                    buf_radh_ = voltdata_array[find_closest(timedata[idx_time_st:idx_time_ed], timedata_peaks_ltd[i]-t_st_condAV):find_closest(timedata[idx_time_st:idx_time_ed], timedata_peaks_ltd[i]+t_ed_condAV), :]
+                    if Mode_ece_radhpxi_calThom:
+                        buf_radh += voltdata_array_calThom[find_closest(timedata[idx_time_st:idx_time_ed], timedata_peaks_ltd[i]-t_st_condAV):find_closest(timedata[idx_time_st:idx_time_ed], timedata_peaks_ltd[i]+t_ed_condAV), :]
+                    else:
+                        buf_radh += voltdata_array[find_closest(timedata[idx_time_st:idx_time_ed], timedata_peaks_ltd[i]-t_st_condAV):find_closest(timedata[idx_time_st:idx_time_ed], timedata_peaks_ltd[i]+t_ed_condAV), :]
+                    buf_t_radh = timedata[find_closest(timedata[idx_time_st:idx_time_ed], timedata_peaks_ltd[i]-t_st_condAV):find_closest(timedata[idx_time_st:idx_time_ed], timedata_peaks_ltd[i]+t_ed_condAV)] - timedata_peaks_ltd[i]+ timedata[idx_time_st] -timedata[0]
+                    buf_t_pci = t_pci_fast[find_closest(t_pci_fast, timedata_peaks_ltd[i] - t_st_condAV):find_closest(t_pci_fast,
+                                                                                                      timedata_peaks_ltd[
+                                                                                                          i] + t_ed_condAV)] - \
+                                  timedata_peaks_ltd[i]
+                    buf_pci += Sxx_50to500kHz[find_closest(t_pci_fast, timedata_peaks_ltd[i]-t_st_condAV):find_closest(t_pci_fast, timedata_peaks_ltd[i]+t_ed_condAV)]
+                except Exception as e:
+                    print(e)
+
+        cond_av_radh = buf_radh/len(timedata_peaks_ltd)
+        cond_av_pci = buf_pci/len(timedata_peaks_ltd)
+        fig = plt.figure()
+        ax1 = fig.add_subplot(111)
+        ax2 = ax1.twinx()
+        ax1.set_axisbelow(True)
+        ax2.set_axisbelow(True)
+        plt.rcParams['axes.axisbelow'] = True
+        label_radh = "ECE(rho=" + str(rho[i_ch]) + ")"
+        label_pci = "pci_ch4_fft_fast"
+        c = ax1.plot(buf_t_radh, cond_av_radh[:, i_ch], 'r-', label=label_radh, zorder=2)
+        a = ax2.plot(buf_t_pci, cond_av_pci, 'g-', label=label_pci, zorder=2)
+        plt.title('Prominence:%.1fto%.1f, #%d' % (prom_min, prom_max, self.ShotNo), loc='right')
+        ax1.grid(axis='x', b=True, which='major', color='#666666', linestyle='-')
+        ax1.grid(axis='x', b=True, which='minor', color='#999999', linestyle='-', alpha=0.2)
+        ax2.set_xlabel('Time [sec]')
+        ax2.set_ylabel('PCI', rotation=270)
+        ax1.set_ylabel('Intensity of ECE [a.u.]', labelpad=15)
+        #ax1.set_ylim(-0.5, 0.1)
+        fig.legend(loc=1, bbox_to_anchor=(1, 1), bbox_transform=ax1.transAxes)
+        ax1.set_zorder(2)
+        ax2.set_zorder(1)
+        ax1.patch.set_alpha(0)
+        #plt.savefig("timetrace_condAV_radh_highK_mp_No%d_prom%.1fto%.1f.png" % (self.ShotNo, prom_min, prom_max))
+        plt.show()
+        plt.close()
+
+
+
+        return buf_t_radh, cond_av_radh, buf_t_pci, cond_av_pci, rho, len(timedata_peaks_ltd), fs
+
+    def condAV_pci_trigLowPassRadh_multishots(self, t_st=None, t_ed=None, arr_peak_selection=None, arr_toff=None,
+                                              prom_min=None, prom_max=None):
+        j = 0
+        shot_st = 188780
+        shot_ed = 188781#188796
+        for i in range(shot_st, shot_ed + 1):
+            try:
+                self.ShotNo = i
+                print(self.ShotNo)
+                if j == 0:
+                    t_radh, buf_cond_av_radh, t_pci_fast, buf_cond_av_pci, rho_radh, num_av, fs = self.condAV_pci_trigLowPassRadh(
+                        t_st=t_st,
+                        t_ed=t_ed,
+                        prom_min=0.4,
+                        prom_max=1.0, Mode_ece_radhpxi_calThom=True)
+                    buf_cond_av_radh_ac = buf_cond_av_radh - np.mean(buf_cond_av_radh[-1000:, :], axis=0)
+                    buf_cond_av_radh *= num_av
+                    buf_cond_av_radh_ac *= num_av
+                    buf_cond_av_pci *= num_av
+                    buf_num_av = num_av
+                    print(buf_num_av)
+                else:
+                    t_radh, buf_cond_av_radh_, t_pci_fast, buf_cond_av_pci_, rho_radh, num_av, fs = self.condAV_pci_trigLowPassRadh(
+                        t_st=t_st,
+                        t_ed=t_ed,
+                        prom_min=0.4,
+                        prom_max=1.0, Mode_ece_radhpxi_calThom=True)
+                    buf_cond_av_radh += (buf_cond_av_radh_ * num_av)
+                    buf_cond_av_radh_ -= np.mean(buf_cond_av_radh_[-1000:, :], axis=0)
+                    buf_cond_av_radh_ac += (buf_cond_av_radh_ * num_av)
+                    buf_cond_av_pci += (buf_cond_av_pci_ * num_av)
+                    buf_num_av += num_av
+                    print(num_av)
+                    print(buf_num_av)
+            except Exception as e:
+                exc_type, exc_obj, exc_tb = sys.exc_info()
+                fname = os.path.split(exc_tb.tb_frame.f_code.co_filename)[1]
+                print("%s, %s, %s" % (exc_type, fname, exc_tb.tb_lineno))
+                print(e)
+            j += 1
+            print(j)
+
+        cond_av_radh = buf_cond_av_radh / buf_num_av
+        cond_av_radh_ac = buf_cond_av_radh_ac / buf_num_av
+        cond_av_pci = buf_cond_av_pci / buf_num_av
+
+        i_ch = 16
+        # label_highK = 'highK(reff/a99=%.3f)' % (reff_a99_highK.mean(axis=-1))
+        fig = plt.figure()
+        ax1 = fig.add_subplot(111)
+        ax2 = ax1.twinx()
+        ax1.set_axisbelow(True)
+        ax2.set_axisbelow(True)
+        plt.rcParams['axes.axisbelow'] = True
+        b = ax2.plot(t_pci_fast, cond_av_pci, 'g-', label='pci_ch4_fft_fast', zorder=1)
+        label_radh = "ECE(rho=" + str(rho_radh[i_ch]) + ")"
+        c = ax1.plot(t_radh, cond_av_radh[:, i_ch], 'r-', label=label_radh, zorder=2)
+        plt.title('Prominence:%.1fto%.1f, #%d-%d' % (prom_min, prom_max, shot_st, shot_ed), loc='right')
+        ax1.grid(axis='x', b=True, which='major', color='#666666', linestyle='-')
+        ax1.grid(axis='x', b=True, which='minor', color='#999999', linestyle='-', alpha=0.2)
+        ax2.set_xlabel('Time [sec]')
+        ax2.set_ylabel('PCI', rotation=270)
+        ax1.set_ylabel('Intensity of ECE [a.u.]', labelpad=15)
+        # ax1.set_ylim(-0.5, 0.1)
+        fig.legend(loc=1, bbox_to_anchor=(1, 1), bbox_transform=ax1.transAxes)
+        ax1.set_zorder(2)
+        ax2.set_zorder(1)
+        ax1.patch.set_alpha(0)
+        # plt.savefig("timetrace_condAV_radh_highK_mp_No%dto%d_prom%.1fto%.1f_v3.png" % (shot_st, shot_ed, prom_min, prom_max))
+        # plt.savefig("timetrace_condAV_ece_radh_highK_mp_No%dto%d_prom%.1fto%.1f_v3.png" % (shot_st, shot_ed, prom_min, prom_max))
+        plt.show()
+        plt.close()
+
     def ana_plot_pci_fft(self):
 
-        sig = VoltData.retrieve('pci_raw_fft', self.ShotNo, 1, 1)
-        #data = AnaData.retrieve('pci_raw_fft', self.ShotNo, 1)
+        #sig = VoltData.retrieve('pci_raw_fft', self.ShotNo, 1, 1)
+        data = AnaData.retrieve('pci_ch4_fft', self.ShotNo, 1)
+        data_fast = AnaData.retrieve('pci_ch4_fft_fast', self.ShotNo, 1)
+        #data = AnaData.retrieve('pci_ch4_fft_fast', self.ShotNo, 1)
 
         # 次元 'R' のデータを取得 (要素数137 の一次元配列(numpy.Array)が返ってくる)
         #r = data.getDimData('R')
-        #dnum = data.getDimNo()
-        #for i in range(dnum):
-        #    print(i, data.getDimName(i), data.getDimUnit(i))
-        #vnum = data.getValNo()
-        #for i in range(vnum):
-        #    print(i, data.getValName(i), data.getValUnit(i))
+        dnum = data_fast.getDimNo()
+        for i in range(dnum):
+            print(i, data.getDimName(i), data.getDimUnit(i))
+        vnum = data_fast.getValNo()
+        for i in range(vnum):
+            print(i, data_fast.getValName(i), data_fast.getValUnit(i))
+        t_pci = data.getDimData('Time')
+        t_pci_fast = data_fast.getDimData('Time')
+        Freq = data.getDimData('Freq')
+        Sxx = data.getValData('Sxx')
+        Sxx_50to150kHz = data_fast.getValData('50-150(kHz)')
+        Sxx_150to500kHz = data_fast.getValData('150-500(kHz)')
+        Sxx_50to500kHz = data_fast.getValData('50-500(kHz)')
+        plt.pcolormesh(t_pci, Freq, Sxx.T, cmap='jet', vmin=0, vmax=0.001)
+        plt.xlim(4.44, 4.55)
+        cb = plt.colorbar()
+        plt.show()
         print('test')
+        plt.plot(t_pci, np.mean(Sxx, axis=1), 'r-')
+        plt.plot(t_pci_fast, Sxx_50to150kHz, '-')
+        plt.plot(t_pci_fast, Sxx_150to500kHz, 'b-')
+        plt.plot(t_pci_fast, Sxx_50to500kHz, 'g-')
+        plt.show()
 
     def ana_plot_pci_test(self):
         data = AnaData.retrieve('ece_fast', self.ShotNo, 1)
@@ -1889,7 +2127,7 @@ class ITB_Analysis:
         plt.tick_params(which='both', axis='both', right=True, top=True, left=True, bottom=True, labelsize=18)
         cb.ax.tick_params(labelsize=18)
         #plt.savefig("condAV_radh_LP%dkHz_No%dto%d_prom%.1fto%.1f_v3.png" % (fs/1e3,shot_st, shot_ed, prom_min, prom_max))
-        plt.savefig("condAV_radh_ece_LP%dkHz_No%dto%d_prom%.1fto%.1f_v4.png" % (fs/1e3,shot_st, shot_ed, prom_min, prom_max))
+        #plt.savefig("condAV_radh_ece_LP%dkHz_No%dto%d_prom%.1fto%.1f_v4.png" % (fs/1e3,shot_st, shot_ed, prom_min, prom_max))
         plt.show()
         plt.close()
 
@@ -1912,8 +2150,8 @@ class ITB_Analysis:
         fig = plt.figure(figsize=(8,6), dpi=150)
         title = 'Low-pass(<%dkHz), Prominence:%.1fto%.1f, #%d-%d' % (fs/1e3, prom_min, prom_max, shot_st, shot_ed)
         plt.title(title, fontsize=16, loc='right')
-        #plt.pcolormesh(1e3*t_radh, rho_radh[1:], (cond_av_radh_01[:,1:]-cond_av_radh_01[:,:-1]).T, cmap='bwr', vmin=-0.2, vmax=0.2)
-        plt.pcolormesh(1e3*t_radh, rho_radh[1:], (cond_av_radh_01[:,1:]-cond_av_radh_01[:,:-1]).T, cmap='jet_r', vmin=-0.1, vmax=0)
+        plt.pcolormesh(1e3*t_radh, rho_radh[1:], (cond_av_radh_01[:,1:]-cond_av_radh_01[:,:-1]).T, cmap='bwr', vmin=-0.05, vmax=0.05)
+        #plt.pcolormesh(1e3*t_radh, rho_radh[1:], (cond_av_radh_01[:,1:]-cond_av_radh_01[:,:-1]).T, cmap='jet_r', vmin=-0.1, vmax=0)
         cb = plt.colorbar()
         cb.set_label("dTe/dR [0,1]", fontsize=18)
         #cb.set_label("dTe/dt [0,1]", fontsize=18)
@@ -1922,7 +2160,7 @@ class ITB_Analysis:
         plt.tick_params(which='both', axis='both', right=True, top=True, left=True, bottom=True, labelsize=18)
         cb.ax.tick_params(labelsize=18)
         #plt.savefig("condAV_radh_dTdR_LP%dkHz_No%dto%d_prom%.1fto%.1f_v3.png" % (fs/1e3,shot_st, shot_ed, prom_min, prom_max))
-        #plt.savefig("condAV_radh_ece_dTdR_LP%dkHz_No%dto%d_prom%.1fto%.1f_v3.png" % (fs/1e3,shot_st, shot_ed, prom_min, prom_max))
+        plt.savefig("condAV_radh_ece_dTdR_LP%dkHz_No%dto%d_prom%.1fto%.1f_v4.png" % (fs/1e3,shot_st, shot_ed, prom_min, prom_max))
         plt.show()
         plt.close()
 
@@ -2419,26 +2657,75 @@ class ITB_Analysis:
         return buf_t_radh, cond_av_radh
 
 
+    def fft_all_radh(self, t_st=None, t_ed=None):
+
+        data_name_info = 'radhinfo' #radlinfo
+        data_name_pxi = 'RADHPXI' #radlpxi
+        data_radhinfo = AnaData.retrieve(data_name_info, self.ShotNo, 1)
+        rho = data_radhinfo.getValData('rho')
+        ch = data_radhinfo.getValData('pxi')
+
+        '''
+        fig, ax = plt.subplots(figsize=(8,20), dpi=150)
+        #fig = plt.figure(figsize=(8,6), dpi=150)
+        #i_ch = 14#13#9
+        for i_ch in range(32):
+            if i_ch == 0:
+                timedata = TimeData.retrieve(data_name_pxi, self.ShotNo, 1, 1).get_val()
+                idx_time_st = find_closest(timedata, t_st)
+                idx_time_ed = find_closest(timedata, t_ed)
+
+            voltdata = VoltData.retrieve(data_name_pxi, self.ShotNo, 1, int(ch[i_ch])).get_val()
+            N = len(voltdata)
+
+
+            F = np.fft.fft(voltdata)
+            freq = np.fft.fftfreq(N, d=(timedata[1]-timedata[0]))
+
+            Amp = np.abs(F)
+
+            #ax.plot(freq[1:int(N / 2)], Amp[1:int(N / 2)] )
+            ax.plot(freq[1:int(N / 2)], Amp[1:int(N / 2)]*10**i_ch)
+        #plt.xlim(0, 3)
+        ax.set_xlabel("Frequency [Hz]")
+        ax.set_ylabel("Amplitude [#]")
+        ax.set_title(data_name_pxi + ", #%d" % self.ShotNo)
+        ax.set_xscale('log')
+        ax.set_yscale('log')
+        ax.set_xlim(freq[1], freq[-1])
+        plt.show()
+        '''
+
+        i_ch = 16
+        voltdata = VoltData.retrieve(data_name_pxi, self.ShotNo, 1, int(ch[i_ch])).get_val()
+        timedata = TimeData.retrieve(data_name_pxi, self.ShotNo, 1, 1).get_val()
+        idx_time_st = find_closest(timedata, t_st)
+        idx_time_ed = find_closest(timedata, t_ed)
+        plt.plot(timedata[idx_time_st:idx_time_ed], voltdata[idx_time_st:idx_time_ed])
+        plt.show()
+        plt.hist(voltdata, bins=100, edgecolor='black', density=True)
+        plt.show()
+
     def cal_hurstd_radh(self, t_st=None, t_ed=None):
 
         data_name_info = 'radhinfo' #radlinfo
-        data_name_pxi = 'RADHPXI' #RADLPXI
-        data_radhinfo = AnaData.retrieve(data_name_info, self.ShotNo, 1)
+        data_name_pxi = 'radhpxi' #radlpxi
+        data_radhinfo = anadata.retrieve(data_name_info, self.shotno, 1)
 
         '''
-        data_name_highK = 'mwrm_highK_Power3' #RADLPXI data_radhinfo = AnaData.retrieve(data_name_info, self.ShotNo, 1)
-        data = AnaData.retrieve(data_name_highK, self.ShotNo, 1)
-        vnum = data.getValNo()
+        data_name_highk = 'mwrm_highk_power3' #radlpxi data_radhinfo = anadata.retrieve(data_name_info, self.shotno, 1)
+        data = anadata.retrieve(data_name_highk, self.shotno, 1)
+        vnum = data.getvalno()
         for i in range(vnum):
-            print(i, data.getValName(i), data.getValUnit(i))
-        timedata = data.getDimData('Time')
-        voltdata= data.getValData('Amplitude (20-200kHz)')
+            print(i, data.getvalname(i), data.getvalunit(i))
+        timedata = data.getdimdata('time')
+        voltdata= data.getvaldata('amplitude (20-200khz)')
         voltdata += 1
 
         '''
         i_ch = 14#13#9
-        timedata = TimeData.retrieve(data_name_pxi, self.ShotNo, 1, 1).get_val()
-        voltdata = VoltData.retrieve(data_name_pxi, self.ShotNo, 1, i_ch+1).get_val()
+        timedata = timedata.retrieve(data_name_pxi, self.shotno, 1, 1).get_val()
+        voltdata = voltdata.retrieve(data_name_pxi, self.shotno, 1, i_ch+1).get_val()
 
         idx_time_st = find_closest(timedata, t_st)
         idx_time_ed = find_closest(timedata, t_ed)
@@ -4244,10 +4531,10 @@ class ITB_Analysis:
         ax1.set_ylabel("Frequency [kHz]")
         ax2.set_xlabel("Time [sec]")
         ax3.set_xscale('log')
-        #ax1.set_xlim([np.min(x), np.max(x)])
-        #ax2.set_xlim([np.min(x), np.max(x)])
-        ax1.set_xlim([4.4, 4.6])
-        ax2.set_xlim([4.4, 4.6])
+        ax1.set_xlim([np.min(x), np.max(x)])
+        ax2.set_xlim([np.min(x), np.max(x)])
+        #ax1.set_xlim([4.4, 4.6])
+        #ax2.set_xlim([4.4, 4.6])
         ax3.set_ylim([np.min(f), np.max(f)])
         print('start show')
         #fig.tight_layout()
@@ -4674,8 +4961,10 @@ if __name__ == "__main__":
     #itba.ana_plot_radh(t_st=4.40, t_ed=4.6)
     #itba.condAV_radh_highK_mp_trigLowPassRadh(t_st=4.0, t_ed=6, prom_min=0.4, prom_max=1.0)
     #itba.condAV_radh_highK_mp_trigLowPassRadh_multishots(t_st=4.0, t_ed=6, prom_min=0.4, prom_max=1.0)
-    itba.condAV_radh_highK_mp_trigLowPassRadh_multishots(t_st=4.0, t_ed=6, prom_min=0.4, prom_max=10.0)
-    #itba.ana_plot_radh_highK(t_st=4.3, t_ed=5.300)
+    #itba.condAV_radh_highK_mp_trigLowPassRadh_multishots(t_st=4.0, t_ed=6, prom_min=0.4, prom_max=10.0)
+    itba.condAV_pci_trigLowPassRadh_multishots(t_st=4.0, t_ed=6, prom_min=0.4, prom_max=10.0)
+    #itba.ana_plot_radh_highK(t_st=3.3, t_ed=7.300)
+    #itba.fft_all_radh(t_st=4, t_ed=6)
     #itba.plot_NBI_ASTI()
     #itba.ana_plot_highK_condAV_MECH(t_st=3.300, t_ed=4.30, mod_freq=40)
     #itba.normalize_highK_w_gradTe(t_st=3.30, t_ed=4.30, mod_freq=40, isSaveData=True)
