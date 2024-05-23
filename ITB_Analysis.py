@@ -1493,6 +1493,236 @@ class ITB_Analysis:
 
         return buf_t_radh, cond_av_radh, buf_t_DBS, cond_av_DBS, rho, len(timedata_peaks_ltd), fs
 
+    def condAV_wp_trigLowPassRadh_multishots(self, t_st=None, t_ed=None, arr_peak_selection=None, arr_toff=None,
+                                              prom_min=None, prom_max=None):
+        j = 0
+        shot_st = 188780
+        shot_ed = 188796
+        for i in range(shot_st, shot_ed + 1):
+            try:
+                self.ShotNo = i
+                print(self.ShotNo)
+                if j == 0:
+                    t_radh, buf_cond_av_radh, t_wp, buf_cond_av_wp, rho_radh, num_av, fs = self.condAV_wp_trigLowPassRadh(
+                        t_st=t_st,
+                        t_ed=t_ed,
+                        prom_min=0.4,
+                        prom_max=1.0, Mode_ece_radhpxi_calThom=True)
+                    buf_cond_av_radh_ac = buf_cond_av_radh - np.mean(buf_cond_av_radh[-1000:, :], axis=0)
+                    buf_cond_av_radh *= num_av
+                    buf_cond_av_radh_ac *= num_av
+                    buf_cond_av_wp *= num_av
+                    buf_num_av = num_av
+                    print(buf_num_av)
+                else:
+                    t_radh, buf_cond_av_radh_, t_wp, buf_cond_av_wp_, rho_radh, num_av, fs = self.condAV_wp_trigLowPassRadh(
+                        t_st=t_st,
+                        t_ed=t_ed,
+                        prom_min=0.4,
+                        prom_max=1.0, Mode_ece_radhpxi_calThom=True)
+                    buf_cond_av_radh += (buf_cond_av_radh_ * num_av)
+                    buf_cond_av_radh_ -= np.mean(buf_cond_av_radh_[-1000:, :], axis=0)
+                    buf_cond_av_radh_ac += (buf_cond_av_radh_ * num_av)
+                    buf_cond_av_wp += (buf_cond_av_wp_ * num_av)
+                    buf_num_av += num_av
+                    print(num_av)
+                    print(buf_num_av)
+            except Exception as e:
+                exc_type, exc_obj, exc_tb = sys.exc_info()
+                fname = os.path.split(exc_tb.tb_frame.f_code.co_filename)[1]
+                print("%s, %s, %s" % (exc_type, fname, exc_tb.tb_lineno))
+                print(e)
+            j += 1
+            print(j)
+
+        cond_av_radh = buf_cond_av_radh / buf_num_av
+        cond_av_radh_ac = buf_cond_av_radh_ac / buf_num_av
+        cond_av_wp = buf_cond_av_wp / buf_num_av
+
+        i_ch = 16
+        # label_highK = 'highK(reff/a99=%.3f)' % (reff_a99_highK.mean(axis=-1))
+        fig = plt.figure()
+        ax1 = fig.add_subplot(111)
+        ax2 = ax1.twinx()
+        ax1.set_axisbelow(True)
+        ax2.set_axisbelow(True)
+        plt.rcParams['axes.axisbelow'] = True
+        #b = ax2.plot(t_DBS, cond_av_DBS, 'g-', label='DBS', zorder=1)
+        b = ax2.plot(t_wp, cond_av_wp, '-', zorder=1, label="Wp")
+        label_radh = "ECE(rho=" + str(rho_radh[i_ch]) + ")"
+        c = ax1.plot(t_radh, cond_av_radh[:, i_ch], 'r-', label=label_radh, zorder=2)
+        plt.title('Wp,Prominence:%.1fto%.1f, #%d-%d' % (prom_min, prom_max, shot_st, shot_ed), loc='right')
+        ax1.grid(axis='x', b=True, which='major', color='#666666', linestyle='-')
+        ax1.grid(axis='x', b=True, which='minor', color='#999999', linestyle='-', alpha=0.2)
+        ax2.set_xlabel('Time [sec]')
+        ax2.set_ylabel('Wp [kJ]', rotation=270)
+        ax1.set_ylabel('Intensity of ECE [a.u.]', labelpad=15)
+        # ax1.set_ylim(-0.5, 0.1)
+        fig.legend(loc=1, bbox_to_anchor=(1, 1), bbox_transform=ax1.transAxes)
+        ax1.set_zorder(2)
+        ax2.set_zorder(1)
+        ax1.patch.set_alpha(0)
+        # plt.savefig("timetrace_condAV_radh_highK_mp_No%dto%d_prom%.1fto%.1f_v3.png" % (shot_st, shot_ed, prom_min, prom_max))
+        plt.savefig("timetrace_condAV_ece_radh_wp_No%dto%d_prom%.1fto%.1f_v3.png" % (shot_st, shot_ed, prom_min, prom_max))
+        plt.show()
+        plt.close()
+
+    def condAV_wp_trigLowPassRadh(self, t_st=None, t_ed=None, arr_peak_selection=None, arr_toff=None, prom_min=None, prom_max=None, Mode_ece_radhpxi_calThom=None):
+        if Mode_ece_radhpxi_calThom:
+            data = AnaData.retrieve('ece_radhpxi_calThom', self.ShotNo, 1)
+            Te = data.getValData('Te')
+            r = data.getDimData('R')
+            timedata = data.getDimData('Time')  # TimeData.retrieve(data_name_pxi, self.ShotNo, 1, 1).get_val()
+        else:
+            data_name_pxi = 'RADHPXI'  # RADLPXI
+            data_name_info = 'radhinfo'  # radlinfo
+            data_radhinfo = AnaData.retrieve(data_name_info, self.ShotNo, 1)
+            r = data_radhinfo.getValData('R')
+            timedata = TimeData.retrieve(data_name_pxi, self.ShotNo, 1, 1).get_val()
+
+        data_name_info = 'radhinfo'  # radlinfo
+        data_radhinfo = AnaData.retrieve(data_name_info, self.ShotNo, 1)
+        t = data.getDimData('Time')
+
+        data_wp = AnaData.retrieve('wp', self.ShotNo, 1)
+        data_wp_ = data_wp.getValData('Wp')
+        t_data_wp = data_wp.getDimData('Time')
+
+        vnum = data_wp.getValNo()
+
+        dnum = data_wp.getDimNo()
+        for i in range(dnum):
+            print(i, data_wp.getDimName(i), data_wp.getDimUnit(i))
+        vnum = data_wp.getValNo()
+        for i in range(vnum):
+            print(i, data_wp.getValName(i), data_wp.getValUnit(i))
+
+
+        rho = data_radhinfo.getValData('rho')
+        ch = data_radhinfo.getValData('pxi')
+
+        i_ch = 16#14#13#9
+        #voltdata_array = np.zeros((len(timedata), 32))
+        idx_time_st = find_closest(timedata, t_st)
+        idx_time_ed = find_closest(timedata, t_ed)
+        voltdata_array = np.zeros((len(timedata[idx_time_st:idx_time_ed]), 32))
+        voltdata_array_calThom = np.zeros((len(timedata[idx_time_st:idx_time_ed]), 32))
+
+
+        fs = 5e3#2e3#5e3
+        dt = timedata[1] - timedata[0]
+        freq = fftpack.fftfreq(len(timedata[idx_time_st:idx_time_ed]), dt)
+        #fig = plt.figure(figsize=(8,6), dpi=150)
+        for i in range(32):
+            #voltdata = VoltData.retrieve(data_name_pxi, self.ShotNo, 1, i+1).get_val()
+            if Mode_ece_radhpxi_calThom:
+                voltdata = Te[:,i]
+            else:
+                voltdata = VoltData.retrieve(data_name_pxi, self.ShotNo, 1, int(ch[i])).get_val()
+            '''
+            low-pass filter for voltdata
+            '''
+            yf = fftpack.rfft(voltdata[idx_time_st:idx_time_ed]) / (int(len(voltdata[idx_time_st:idx_time_ed]) / 2))
+            yf2 = np.copy(yf)
+            yf2[(freq > fs)] = 0
+            yf2[(freq < 0)] = 0
+            y2 = np.real(fftpack.irfft(yf2) * (int(len(voltdata[idx_time_st:idx_time_ed]) / 2)))
+            voltdata_array[:, i] = y2
+            voltdata_array[:, i] = normalize_0_1(y2)
+            if Mode_ece_radhpxi_calThom:
+                voltdata_array_calThom[:, i] = y2
+
+
+        #_, _, _, timedata_peaks_ltd_,_,_,_ = self.findpeaks_radh(t_st, t_ed, i_ch)
+        if Mode_ece_radhpxi_calThom:
+            peaks, prominences, timedata_peaks_ltd_ = self.findpeaks_radh(t_st, t_ed, i_ch, timedata[idx_time_st:idx_time_ed], voltdata_array, isCondAV=True, isPlot=True, Mode_find_peaks='avalanche20240403_ece', prom_min=prom_min, prom_max=prom_max)
+        else:
+            peaks, prominences, timedata_peaks_ltd_ = self.findpeaks_radh(t_st, t_ed, i_ch, timedata[idx_time_st:idx_time_ed], voltdata_array, isCondAV=True, isPlot=False, Mode_find_peaks='avalanche20240403', prom_min=prom_min, prom_max=prom_max)
+
+        #timedata_peaks_ltd = timedata_peaks_ltd_
+        if arr_peak_selection == None:
+            timedata_peaks_ltd = timedata_peaks_ltd_
+        else:
+            timedata_peaks_ltd = timedata_peaks_ltd_[arr_peak_selection]
+        #timedata_peaks_ltd -= arr_toff
+        print(len(timedata_peaks_ltd_))
+        t_st_condAV = 15e-3
+        t_ed_condAV = 25e-3#4e-3#6e-3#10e-3#
+        for i in range(len(timedata_peaks_ltd)):
+            if i == 0:
+                if Mode_ece_radhpxi_calThom:
+                    buf_radh = voltdata_array_calThom[find_closest(timedata[idx_time_st:idx_time_ed],
+                                                                   timedata_peaks_ltd[i] - t_st_condAV):find_closest(
+                        timedata[idx_time_st:idx_time_ed], timedata_peaks_ltd[i] + t_ed_condAV), :]
+                else:
+                    buf_radh = voltdata_array[find_closest(timedata[idx_time_st:idx_time_ed],
+                                                           timedata_peaks_ltd[i] - t_st_condAV):find_closest(
+                        timedata[idx_time_st:idx_time_ed], timedata_peaks_ltd[i] + t_ed_condAV), :]
+                buf_radh_ = voltdata_array[find_closest(timedata[idx_time_st:idx_time_ed], timedata_peaks_ltd[i]-t_st_condAV):find_closest(timedata[idx_time_st:idx_time_ed], timedata_peaks_ltd[i]+t_ed_condAV), :]
+                buf_t_radh = timedata[find_closest(timedata[idx_time_st:idx_time_ed], timedata_peaks_ltd[i]-t_st_condAV):find_closest(timedata[idx_time_st:idx_time_ed], timedata_peaks_ltd[i]+t_ed_condAV)] - timedata_peaks_ltd[i] + timedata[idx_time_st] - timedata[0]
+                buf_t_wp =t_data_wp[find_closest(t_data_wp, timedata_peaks_ltd[i]-t_st_condAV):find_closest(t_data_wp, timedata_peaks_ltd[i]+t_ed_condAV)] - timedata_peaks_ltd[i]
+
+                buf_wp = data_wp_[find_closest(t_data_wp, timedata_peaks_ltd[i]-t_st_condAV):find_closest(t_data_wp, timedata_peaks_ltd[i]+t_ed_condAV)]
+
+            else:
+                buf_radh_ = voltdata_array[find_closest(timedata[idx_time_st:idx_time_ed], timedata_peaks_ltd[i]-t_st_condAV):find_closest(timedata[idx_time_st:idx_time_ed], timedata_peaks_ltd[i]+t_ed_condAV), :]
+                if Mode_ece_radhpxi_calThom:
+                    buf_radh += voltdata_array_calThom[find_closest(timedata[idx_time_st:idx_time_ed], timedata_peaks_ltd[i]-t_st_condAV):find_closest(timedata[idx_time_st:idx_time_ed], timedata_peaks_ltd[i]+t_ed_condAV), :]
+                else:
+                    buf_radh += voltdata_array[find_closest(timedata[idx_time_st:idx_time_ed], timedata_peaks_ltd[i]-t_st_condAV):find_closest(timedata[idx_time_st:idx_time_ed], timedata_peaks_ltd[i]+t_ed_condAV), :]
+                buf_t_radh = timedata[find_closest(timedata[idx_time_st:idx_time_ed], timedata_peaks_ltd[i]-t_st_condAV):find_closest(timedata[idx_time_st:idx_time_ed], timedata_peaks_ltd[i]+t_ed_condAV)] - timedata_peaks_ltd[i]+ timedata[idx_time_st] -timedata[0]
+                buf_t_wp = t_data_wp[find_closest( t_data_wp, timedata_peaks_ltd[i] - t_st_condAV):find_closest( t_data_wp,
+                                                                                                                 timedata_peaks_ltd[
+                                                                                                                     i] + t_ed_condAV)] - \
+                           timedata_peaks_ltd[i]
+                buf_wp += data_wp_[find_closest( t_data_wp, timedata_peaks_ltd[i]-t_st_condAV):find_closest( t_data_wp, timedata_peaks_ltd[i]+t_ed_condAV)]
+                '''
+                try:
+                    buf_radh_ = voltdata_array[find_closest(timedata[idx_time_st:idx_time_ed], timedata_peaks_ltd[i]-t_st_condAV):find_closest(timedata[idx_time_st:idx_time_ed], timedata_peaks_ltd[i]+t_ed_condAV), :]
+                    if Mode_ece_radhpxi_calThom:
+                        buf_radh += voltdata_array_calThom[find_closest(timedata[idx_time_st:idx_time_ed], timedata_peaks_ltd[i]-t_st_condAV):find_closest(timedata[idx_time_st:idx_time_ed], timedata_peaks_ltd[i]+t_ed_condAV), :]
+                    else:
+                        buf_radh += voltdata_array[find_closest(timedata[idx_time_st:idx_time_ed], timedata_peaks_ltd[i]-t_st_condAV):find_closest(timedata[idx_time_st:idx_time_ed], timedata_peaks_ltd[i]+t_ed_condAV), :]
+                    buf_t_radh = timedata[find_closest(timedata[idx_time_st:idx_time_ed], timedata_peaks_ltd[i]-t_st_condAV):find_closest(timedata[idx_time_st:idx_time_ed], timedata_peaks_ltd[i]+t_ed_condAV)] - timedata_peaks_ltd[i]+ timedata[idx_time_st] -timedata[0]
+                    buf_t_wp = t_data_wp[find_closest( t_data_wp, timedata_peaks_ltd[i] - t_st_condAV):find_closest( t_data_wp,
+                                                                                                                        timedata_peaks_ltd[
+                                                                                                                            i] + t_ed_condAV)] - \
+                                timedata_peaks_ltd[i]
+                    buf_wp += data_wp_[find_closest( t_data_wp, timedata_peaks_ltd[i]-t_st_condAV):find_closest( t_data_wp, timedata_peaks_ltd[i]+t_ed_condAV)]
+                except Exception as e:
+                    print(e)
+                '''
+
+        cond_av_radh = buf_radh/len(timedata_peaks_ltd)
+        cond_av_wp = buf_wp/len(timedata_peaks_ltd)
+        fig = plt.figure()
+        ax1 = fig.add_subplot(111)
+        ax2 = ax1.twinx()
+        ax1.set_axisbelow(True)
+        ax2.set_axisbelow(True)
+        plt.rcParams['axes.axisbelow'] = True
+        label_radh = "ECE(rho=" + str(rho[i_ch]) + ")"
+        c = ax1.plot(buf_t_radh, cond_av_radh[:, i_ch], 'r-', label=label_radh, zorder=2)
+        #a = ax2.plot(buf_t_DBS, cond_av_DBS, 'g-', label=label_pci, zorder=2)
+        a = ax2.plot(buf_t_wp, cond_av_wp, '-', zorder=2)
+        plt.title('Wp, Prominence:%.1fto%.1f, #%d' % (prom_min, prom_max, self.ShotNo), loc='right')
+        ax1.grid(axis='x', b=True, which='major', color='#666666', linestyle='-')
+        ax1.grid(axis='x', b=True, which='minor', color='#999999', linestyle='-', alpha=0.2)
+        ax2.set_xlabel('Time [sec]')
+        ax2.set_ylabel('wp [kJ]', rotation=270)
+        ax1.set_ylabel('Intensity of ECE [a.u.]', labelpad=15)
+        #ax1.set_ylim(-0.5, 0.1)
+        fig.legend(loc=1, bbox_to_anchor=(1, 1), bbox_transform=ax1.transAxes)
+        ax1.set_zorder(2)
+        ax2.set_zorder(1)
+        ax1.patch.set_alpha(0)
+        #plt.savefig("timetrace_condAV_radh_highK_mp_No%d_prom%.1fto%.1f.png" % (self.ShotNo, prom_min, prom_max))
+        plt.show()
+        plt.close()
+
+
+
+        return buf_t_radh, cond_av_radh, buf_t_wp, cond_av_wp, rho, len(timedata_peaks_ltd), fs
     def condAV_pci_trigLowPassRadh(self, t_st=None, t_ed=None, arr_peak_selection=None, arr_toff=None, prom_min=None, prom_max=None, Mode_ece_radhpxi_calThom=None):
         if Mode_ece_radhpxi_calThom:
             data = AnaData.retrieve('ece_radhpxi_calThom', self.ShotNo, 1)
@@ -4386,7 +4616,7 @@ class ITB_Analysis:
 
         return buf_t_radh, cond_av_radh, buf_t_qe, reff_qe, cond_av_qe,data_qe.getValName(num_val), data_qe.getValUnit(num_val), rho, len(timedata_peaks_ltd), fs
 
-    def condAV_ne_trigLowPassRadh_multishots(self, t_st=None, t_ed=None, arr_peak_selection=None, arr_toff=None,
+    def condAV_nel_trigLowPassRadh_multishots(self, t_st=None, t_ed=None, arr_peak_selection=None, arr_toff=None,
                                               prom_min=None, prom_max=None):
         j = 0
         shot_st = 188780
@@ -4396,7 +4626,7 @@ class ITB_Analysis:
                 self.ShotNo = i
                 print(self.ShotNo)
                 if j == 0:
-                    t_radh, buf_cond_av_radh, t_nel, buf_cond_av_nel, val_name_nel, val_unit_nel, rho_radh, num_av, fs = self.condAV_ne_trigLowPassRadh(
+                    t_radh, buf_cond_av_radh, t_nel, R_fir_mm, buf_cond_av_nel, val_name_nel, val_unit_nel, rho_radh, num_av, fs = self.condAV_nel_trigLowPassRadh(
                         t_st=t_st,
                         t_ed=t_ed,
                         prom_min=0.4,
@@ -4408,7 +4638,7 @@ class ITB_Analysis:
                     buf_num_av = num_av
                     print(buf_num_av)
                 else:
-                    t_radh, buf_cond_av_radh_, t_nel, buf_cond_av_nel_, val_name_nel, val_unit_nel, rho_radh, num_av, fs = self.condAV_ne_trigLowPassRadh(
+                    t_radh, buf_cond_av_radh_, t_nel, R_fir_mm, buf_cond_av_nel_, val_name_nel, val_unit_nel, rho_radh, num_av, fs = self.condAV_nel_trigLowPassRadh(
                         t_st=t_st,
                         t_ed=t_ed,
                         prom_min=0.4,
@@ -4430,8 +4660,8 @@ class ITB_Analysis:
 
         cond_av_radh = buf_cond_av_radh / buf_num_av
         cond_av_radh_ac = buf_cond_av_radh_ac / buf_num_av
-        cond_av_nel_ = buf_cond_av_nel / buf_num_av
-        cond_av_nel = np.array(normalize_all_columns_np(cond_av_nel_))
+        cond_av_nel = buf_cond_av_nel / buf_num_av
+        #cond_av_nel = np.array(normalize_all_columns_np(cond_av_nel_))
 
 
         fig = plt.figure()
@@ -4444,8 +4674,9 @@ class ITB_Analysis:
         label_radh = "ECE(rho=" + str(rho_radh[i_ch]) + ")"
         c = ax1.plot(t_radh, cond_av_radh[:, i_ch], 'r-', label=label_radh, zorder=2)
         #a = ax2.plot( buf_t_nel, cond_av_nel[:], 'g-', label=data_nel.getValName(num_val), zorder=2)
-        for i in range(len(cond_av_nel[0,:])):
-            a = ax2.plot( t_nel, cond_av_nel[:,i] + 1.2*i, '-', zorder=2)
+        for i in range(2, len(cond_av_nel[0,:])):
+            a = ax2.plot( t_nel, cond_av_nel[:,i]- np.mean(cond_av_nel[:200,i]) + 0.01*i, '-', zorder=2, label=R_fir_mm[i-2])
+            #a = ax2.plot( t_nel, cond_av_nel[:,i]- np.mean(cond_av_nel[:200,i]), '-', zorder=2, label=R_fir_mm[i-2])
         #a = ax2.plot( buf_t_qe, cond_av_qe[:, 18], '-', label=data_qe.getValName(num_val)+"18", zorder=2)
         #a = ax2.plot( buf_t_qe, cond_av_qe[:, 20], '-', label=data_qe.getValName(num_val)+"20", zorder=2)
         plt.title('Prominence:%.1fto%.1f, #%d-%d' % (prom_min, prom_max, shot_st, shot_ed), loc='right')
@@ -4463,9 +4694,26 @@ class ITB_Analysis:
         plt.show()
         plt.close()
 
+        fig = plt.figure(figsize=(8,6), dpi=150)
+        plt.title('Prominence:%.1fto%.1f, #%d-%d' % (prom_min, prom_max, shot_st, shot_ed), loc='right')
+        test = (cond_av_nel[:, 2:]- np.mean(cond_av_nel[200:,2:])).T
+        plt.pcolormesh(1e3*t_nel, R_fir_mm, (cond_av_nel[:, 2:]- np.mean(cond_av_nel[:200,2:], axis=0)).T, cmap='bwr', vmin=-0.008, vmax=0.008)
+        cb = plt.colorbar()
+        cb.set_label("nel [e19m-2]", fontsize=18, rotation=270, labelpad=16)
+        #cb.set_label("Te [0,1]", fontsize=18)
+        #cb.set_label("dTe/dt [0,1]", fontsize=18)
+        plt.xlabel("Time [ms]", fontsize=18)
+        plt.ylabel("R [mm]", fontsize=18)
+        plt.tick_params(which='both', axis='both', right=True, top=True, left=True, bottom=True, labelsize=18)
+        cb.ax.tick_params(labelsize=18)
+        #plt.savefig("condAV_radh_LP%dkHz_No%dto%d_prom%.1fto%.1f_v3.png" % (fs/1e3,shot_st, shot_ed, prom_min, prom_max))
+        #plt.savefig("condAV_radh_ece_LP%dkHz_No%dto%d_prom%.1fto%.1f_v4.png" % (fs/1e3,shot_st, shot_ed, prom_min, prom_max))
+        plt.show()
+        plt.close()
 
 
-    def condAV_ne_trigLowPassRadh(self, t_st=None, t_ed=None, arr_peak_selection=None, arr_toff=None, prom_min=None, prom_max=None, Mode_ece_radhpxi_calThom=None):
+
+    def condAV_nel_trigLowPassRadh(self, t_st=None, t_ed=None, arr_peak_selection=None, arr_toff=None, prom_min=None, prom_max=None, Mode_ece_radhpxi_calThom=None):
         if Mode_ece_radhpxi_calThom:
             data = AnaData.retrieve('ece_radhpxi_calThom', self.ShotNo, 1)
             Te = data.getValData('Te')
@@ -4490,9 +4738,12 @@ class ITB_Analysis:
         vnum = data_nel.getValNo()
         t_nel = data_nel.getDimData('Time')
         data_fir_nel = np.zeros((len(t_nel), vnum))
+        R_fir_mm = np.zeros(vnum-2)
         for i in range(vnum):
             print(i, data_nel.getValName(i), data_nel.getValUnit(i))
             data_fir_nel[:,i] = data_nel.getValData(i)
+            if i > 1:
+                R_fir_mm[i-2] = int(data_nel.getValName(i)[3:-1])
         num_val =4
         print(num_val, data_nel.getValName(num_val), data_nel.getValUnit(num_val))
 
@@ -4614,7 +4865,7 @@ class ITB_Analysis:
 
 
 
-        return buf_t_radh, cond_av_radh, buf_t_nel, cond_av_nel,data_nel.getValName(num_val), data_nel.getValUnit(num_val), rho, len(timedata_peaks_ltd), fs
+        return buf_t_radh, cond_av_radh, buf_t_nel, R_fir_mm, cond_av_nel,data_nel.getValName(num_val), data_nel.getValUnit(num_val), rho, len(timedata_peaks_ltd), fs
 
     def ana_plot_ece(self, isSaveData=False):
         data = AnaData.retrieve('ece_fast', self.ShotNo, 1)
@@ -5806,7 +6057,7 @@ if __name__ == "__main__":
     #ana_findpeaks_shotarray()
     #ana_delaytime_shotarray()
     #itba = ITB_Analysis(int(ShotNo))
-    #itba = ITB_Analysis(188787, 169693)#167088), 163958
+    itba = ITB_Analysis(188787, 169693)#167088), 163958
     #itba.conditional_average_highK_mppk(t_st=4.3, t_ed=4.60)
     #ShotNos = np.arange(178939, 178970)
     #ShotNos = 169690 + np.array([2,3,8,9,17,18,20,22,24,25])
@@ -5823,14 +6074,16 @@ if __name__ == "__main__":
     #itba.ana_plot_radh(t_st=4.40, t_ed=4.6)
     #itba.condAV_radh_highK_mp_trigLowPassRadh(t_st=4.0, t_ed=6, prom_min=0.4, prom_max=1.0)
     #itba.condAV_DBS_trigLowPassRadh(t_st=4.0, t_ed=6, prom_min=0.4, prom_max=1.0, Mode_ece_radhpxi_calThom=True)
+    #itba.condAV_wp_trigLowPassRadh(t_st=4.0, t_ed=6, prom_min=0.4, prom_max=1.0, Mode_ece_radhpxi_calThom=True)
     #itba.condAV_qe_trigLowPassRadh(t_st=4.0, t_ed=6, prom_min=0.4, prom_max=1.0, Mode_ece_radhpxi_calThom=True)
-    #itba.condAV_ne_trigLowPassRadh(t_st=4.0, t_ed=6, prom_min=0.4, prom_max=1.0, Mode_ece_radhpxi_calThom=True)
+    #itba.condAV_nel_trigLowPassRadh(t_st=4.0, t_ed=6, prom_min=0.4, prom_max=1.0, Mode_ece_radhpxi_calThom=True)
     #itba.condAV_radh_highK_mp_trigLowPassRadh_multishots(t_st=4.0, t_ed=6, prom_min=0.4, prom_max=1.0)
     #itba.condAV_radh_highK_mp_trigLowPassRadh_multishots(t_st=4.0, t_ed=6, prom_min=0.4, prom_max=10.0)
     #itba.condAV_pci_trigLowPassRadh_multishots(t_st=4.0, t_ed=6, prom_min=0.4, prom_max=10.0)
     #itba.condAV_qe_trigLowPassRadh_multishots(t_st=4.0, t_ed=6, prom_min=0.4, prom_max=10.0)
-    #itba.condAV_ne_trigLowPassRadh_multishots(t_st=4.0, t_ed=6, prom_min=0.4, prom_max=10.0)
+    #itba.condAV_nel_trigLowPassRadh_multishots(t_st=4.0, t_ed=6, prom_min=0.4, prom_max=10.0)
     #itba.condAV_DBS_trigLowPassRadh_multishots(t_st=4.0, t_ed=6, prom_min=0.4, prom_max=10.0)
+    itba.condAV_wp_trigLowPassRadh_multishots(t_st=4.0, t_ed=6, prom_min=0.4, prom_max=10.0)
     #itba.ana_plot_DBS_fft()
     #itba.ana_plot_radh_highK(t_st=3.3, t_ed=7.300)
     #itba.fft_all_radh(t_st=4, t_ed=6)
