@@ -10,7 +10,7 @@ from scipy.interpolate import interp1d
 from scipy.signal import find_peaks, peak_prominences
 from scipy.optimize import curve_fit
 from scipy.signal import convolve2d
-from scipy import signal
+from scipy import signal, integrate
 import scipy.signal as sig
 import numpy as np
 import matplotlib
@@ -2576,7 +2576,7 @@ class ITB_Analysis:
     def condAV_radh_highK_mp_trigLowPassRadh_multishots(self, t_st=None, t_ed=None, arr_peak_selection=None, arr_toff=None, prom_min=None, prom_max=None):
         j = 0
         shot_st = 188780
-        shot_ed = 188796
+        shot_ed = 188781#188796
         for i in range(shot_st, shot_ed+1):
             try:
                 self.ShotNo = i
@@ -2715,6 +2715,8 @@ class ITB_Analysis:
         plt.show()
         plt.close()
 
+        return t_radh, rho_radh, cond_av_radh_01
+
     def condAV_radh_highK_mp_trigLowPassRadh(self, t_st=None, t_ed=None, arr_peak_selection=None, arr_toff=None, prom_min=None, prom_max=None, Mode_ece_radhpxi_calThom=None):
         if Mode_ece_radhpxi_calThom:
             data = AnaData.retrieve('ece_radhpxi_calThom', self.ShotNo, 1)
@@ -2763,7 +2765,7 @@ class ITB_Analysis:
         data_mp_2d = data_mp.getValData(0)
         t_mp = data_mp.getDimData('TIME')
 
-        fs = 5e3#2e3#5e3
+        fs = 5e2#5e3#2e3#5e3
         dt = timedata[1] - timedata[0]
         freq = fftpack.fftfreq(len(timedata[idx_time_st:idx_time_ed]), dt)
         #fig = plt.figure(figsize=(8,6), dpi=150)
@@ -5405,6 +5407,76 @@ class ITB_Analysis:
         plt.tight_layout()
         plt.show()
 
+    def calc_qe(self):
+        data = AnaData.retrieve('tsmap_calib', self.ShotNo, 1)
+
+        # 変数 'Te' のデータを取得 (要素数 136x96 の二次元配列(numpy.Array)が返ってくる)
+        reffa99 = data.getValData('reff/a99')
+        reff = data.getValData('reff')
+        dVdreff = data.getValData('dVdreff')
+        ne_fit = data.getValData('ne_fit')
+        t_ece, reffa99_ece, cond_av_ece = self.condAV_radh_highK_mp_trigLowPassRadh_multishots(t_st=4.0, t_ed=6, prom_min=0.4, prom_max=10.0)
+        dTedt = (cond_av_ece[1:,:]-cond_av_ece[:-1,:])/(t_ece[1]-t_ece[0])
+        qe = np.zeros(np.shape(dTedt[:,1:]))
+        dqedr = np.zeros(np.shape(dTedt[:,1:]))
+
+        fig = plt.figure(figsize=(8,6), dpi=150)
+        #title = 'Low-pass(<%dkHz), Prominence:%.1fto%.1f, #%d-%d' % (fs/1e3, prom_min, prom_max, shot_st, shot_ed)
+        #plt.title(title, fontsize=16, loc='right')
+        plt.pcolormesh(1e3*t_ece[1:], reffa99_ece, dTedt.T, cmap='bwr', vmin=-10, vmax=10)
+        cb = plt.colorbar()
+        cb.set_label("dTe/dt [0,1]", fontsize=18)
+        plt.xlabel("Time [ms]", fontsize=18)
+        plt.ylabel(r"$r_{eff}/a_{99}$", fontsize=18)
+        plt.tick_params(which='both', axis='both', right=True, top=True, left=True, bottom=True, labelsize=18)
+        cb.ax.tick_params(labelsize=18)
+        plt.show()
+        plt.close()
+
+        for i in range(len(t_ece)-1):
+
+            f = interp1d(reffa99[52], dVdreff[52], kind='cubic')
+            dVdreff_ece = f(reffa99_ece)
+            f2 = interp1d(reffa99[52], reff[52], kind='cubic')
+            reff_ece = f2(reffa99_ece)
+            f3 = interp1d(reffa99[52], ne_fit[52], kind='cubic')
+            ne_fit_ece = f(reffa99_ece)
+            qe[i,:] = -(3/2)*integrate.cumtrapz(ne_fit_ece[1:]*dTedt[i,1:]*dVdreff_ece[1:]*(reff_ece[1:]-reff_ece[:-1]), reff_ece[1:], initial=0)/(dVdreff_ece[1:]*ne_fit_ece[1:])
+            dqedr[i,:] = ne_fit_ece[1:]*dTedt[i,1:]*dVdreff_ece[1:]*(reffa99_ece[1:]-reffa99_ece[:-1])
+
+        fig = plt.figure(figsize=(8,6), dpi=150)
+        #title = 'Low-pass(<%dkHz), Prominence:%.1fto%.1f, #%d-%d' % (fs/1e3, prom_min, prom_max, shot_st, shot_ed)
+        #plt.title(title, fontsize=16, loc='right')
+        plt.pcolormesh(1e3*t_ece[1:], reffa99_ece, dqedr.T, cmap='bwr')#, vmin=-20, vmax=20)
+        cb = plt.colorbar()
+        cb.set_label("dqe/dreff/ne", fontsize=18)
+        plt.xlabel("Time [ms]", fontsize=18)
+        plt.ylabel(r"$r_{eff}/a_{99}$", fontsize=18)
+        plt.tick_params(which='both', axis='both', right=True, top=True, left=True, bottom=True, labelsize=18)
+        cb.ax.tick_params(labelsize=18)
+        plt.show()
+        plt.close()
+
+        fig = plt.figure(figsize=(8,6), dpi=150)
+        #title = 'Low-pass(<%dkHz), Prominence:%.1fto%.1f, #%d-%d' % (fs/1e3, prom_min, prom_max, shot_st, shot_ed)
+        #plt.title(title, fontsize=16, loc='right')
+        plt.pcolormesh(1e3*t_ece[1:], reffa99_ece, qe.T, cmap='bwr')#, vmin=-0.050, vmax=0.05)
+        cb = plt.colorbar()
+        cb.set_label("qe/ne", fontsize=18)
+        plt.xlabel("Time [ms]", fontsize=18)
+        plt.ylabel(r"$r_{eff}/a_{99}$", fontsize=18)
+        plt.tick_params(which='both', axis='both', right=True, top=True, left=True, bottom=True, labelsize=18)
+        cb.ax.tick_params(labelsize=18)
+        plt.show()
+        plt.close()
+
+        '''
+        # 次元 'Time' のデータを取得 (要素数96 の一次元配列(numpy.Array)が返ってくる)
+        t = data.getDimData('Time')
+        plt.plot(reffa99[10], dVdreff[10])
+        plt.plot(reffa99_ece, dVdreff_ece)
+        plt.show()
+        '''
 
     def plot_TS(self):
         data = AnaData.retrieve('tsmap_calib', self.ShotNo, 1)
@@ -6083,7 +6155,8 @@ if __name__ == "__main__":
     #itba.condAV_qe_trigLowPassRadh_multishots(t_st=4.0, t_ed=6, prom_min=0.4, prom_max=10.0)
     #itba.condAV_nel_trigLowPassRadh_multishots(t_st=4.0, t_ed=6, prom_min=0.4, prom_max=10.0)
     #itba.condAV_DBS_trigLowPassRadh_multishots(t_st=4.0, t_ed=6, prom_min=0.4, prom_max=10.0)
-    itba.condAV_wp_trigLowPassRadh_multishots(t_st=4.0, t_ed=6, prom_min=0.4, prom_max=10.0)
+    #itba.condAV_wp_trigLowPassRadh_multishots(t_st=4.0, t_ed=6, prom_min=0.4, prom_max=10.0)
+    itba.calc_qe()
     #itba.ana_plot_DBS_fft()
     #itba.ana_plot_radh_highK(t_st=3.3, t_ed=7.300)
     #itba.fft_all_radh(t_st=4, t_ed=6)
