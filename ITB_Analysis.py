@@ -1,5 +1,6 @@
 import sys
 import os
+import csv
 from nifs.anadata import *
 from nifs.voltdata import *
 from nifs.timedata import *
@@ -13,7 +14,6 @@ from scipy.signal import convolve2d
 from scipy import signal, integrate
 import scipy.signal as sig
 import numpy as np
-import matplotlib
 #matplotlib.use('TkAgg')
 import matplotlib.pyplot as plt
 import time
@@ -2576,7 +2576,7 @@ class ITB_Analysis:
     def condAV_radh_highK_mp_trigLowPassRadh_multishots(self, t_st=None, t_ed=None, arr_peak_selection=None, arr_toff=None, prom_min=None, prom_max=None):
         j = 0
         shot_st = 188780
-        shot_ed = 188781#188796
+        shot_ed = 188796
         for i in range(shot_st, shot_ed+1):
             try:
                 self.ShotNo = i
@@ -2765,7 +2765,7 @@ class ITB_Analysis:
         data_mp_2d = data_mp.getValData(0)
         t_mp = data_mp.getDimData('TIME')
 
-        fs = 5e2#5e3#2e3#5e3
+        fs = 2e3#2e3#5e3
         dt = timedata[1] - timedata[0]
         freq = fftpack.fftfreq(len(timedata[idx_time_st:idx_time_ed]), dt)
         #fig = plt.figure(figsize=(8,6), dpi=150)
@@ -2904,7 +2904,7 @@ class ITB_Analysis:
         ax2.set_zorder(1)
         ax1.patch.set_alpha(0)
         #plt.savefig("timetrace_condAV_radh_highK_mp_No%d_prom%.1fto%.1f.png" % (self.ShotNo, prom_min, prom_max))
-        #plt.show()
+        plt.show()
         plt.close()
 
         cond_av_radh_01 = np.zeros((len(cond_av_radh[:,0]), 32))
@@ -3465,10 +3465,10 @@ class ITB_Analysis:
         t_mp = data_mp.getDimData('TIME')
 
         #_, _, _, timedata_peaks_ltd,_,_,_ = self.findpeaks_radh(t_st, t_ed, i_ch)
-        #t_offset_st = 5.3915#4.3915
-        #t_offset_ed = 5.3925#4.3925
-        t_offset_st = 4.3915
-        t_offset_ed = 4.3925
+        t_offset_st = 5.3915#4.3915
+        t_offset_ed = 5.3925#4.3925
+        #t_offset_st = 4.3915
+        #t_offset_ed = 4.3925
         offset_highK = np.mean(data_highK[find_closest(t, t_offset_st):find_closest(t, t_offset_ed)])
         data_highK -= offset_highK
 
@@ -3497,7 +3497,7 @@ class ITB_Analysis:
 
 
         b = ax1.plot(t_mp, data_mp_2d[:,0], 'g-', label='mp_raw')
-        #b = ax1.plot(timedata_highK_probe, voltdata_highK_probe, 'g-', label='highK_probe')
+        b = ax1.plot(timedata_highK_probe, voltdata_highK_probe, 'g-', label='highK_probe')
         b = ax1.plot(timedata_highK_probe, voltdata_highK_probe_01, '-', label='highK_probe_01')
         idx_time_st_highK = find_closest(t, t_st)
         idx_time_ed_highK = find_closest(t, t_ed)
@@ -3514,7 +3514,7 @@ class ITB_Analysis:
         ax1.set_ylabel('b_dot_tilda [T/s]')
         ax2.set_ylabel('Intensity of ECE [a.u.]', rotation=270, labelpad=15)
         fig.legend(loc=1, bbox_to_anchor=(1, 1), bbox_transform=ax1.transAxes)
-        #plt.xlim(4.3, 5.3)
+        plt.xlim(5.1, 5.2)
         #plt.xlim(4.40, 4.48)
         #plt.xlim(5.3, 5.50)
         #plt.xlim(4.398787, 4.403755)
@@ -3659,6 +3659,30 @@ class ITB_Analysis:
         #np.savetxt('radh_timedata' + filename, timedata[idx_time_st:idx_time_ed])
 
 
+    def ana_plot_CTRLDISP1_condAV_MECH(self, t_st, t_ed, mod_freq):
+        data_name_ech = 'CTRLDISP1'
+        timedata = TimeData.retrieve(data_name_ech, self.ShotNo, 1, 1).get_val()
+        fig = plt.figure(figsize=(8,6), dpi=150)
+        array_ECHRF = [13,14,16,17,22]
+        name_gyrotron = ["#1", "#2", "#4", "#5", "#7"]
+        i_name = 0
+        #for i_ch in range(23):
+        for i_ch in array_ECHRF:
+            #data_ech = VoltData.retrieve(data_name_ech, self.ShotNo, 1, i_ch+1).get_val()
+            data_ech = VoltData.retrieve(data_name_ech, self.ShotNo, 1, i_ch).get_val()
+            plt.plot(timedata, data_ech, label=name_gyrotron[i_name])
+            i_name += 1
+
+        plt.vlines(5.0, -2, 6, colors='black')
+        plt.xlim(4.995, 5.01)
+        #plt.xlim(5,7)
+        plt.ylim(-1,5.5)
+        plt.legend()
+        title = '%s, #%d, %.2fs-%.2fs' % (data_name_ech, self.ShotNo, t_st, t_ed)
+        plt.title(title, fontsize=18, loc='right')
+        plt.xlabel("Time [s]")
+        plt.grid()
+        plt.show()
 
     def ana_plot_highK_condAV_MECH(self, t_st, t_ed, mod_freq):
         data_name_highK = 'mwrm_highK_Power3' #RADLPXI data_radhinfo = AnaData.retrieve(data_name_info, self.ShotNo, 1)
@@ -3677,31 +3701,112 @@ class ITB_Analysis:
         voltdata_highK_probe_01 = np.where(voltdata_highK_probe < -0.5, 1, 0)
 
 
+        interval_time_probe = 10
         idx_time_st = find_closest(timedata, t_st)
-        idx_time_ed = find_closest(timedata, t_ed)
+        idx_time_ed = find_closest(timedata, t_ed)#+1
         idx_time_period = find_closest(timedata, t_st + 1/mod_freq) - idx_time_st
         i_wave = np.int(Decimal(str(mod_freq))*(Decimal(str(t_ed))-Decimal(str(t_st))))
         idx_probe_time_st = find_closest(timedata_highK_probe, t_st)
         idx_probe_time_ed = find_closest(timedata_highK_probe, t_ed)
         idx_probe_time_period = find_closest(timedata_highK_probe, t_st + 1/mod_freq) - idx_probe_time_st
         i_wave = np.int(Decimal(str(mod_freq))*(Decimal(str(t_ed))-Decimal(str(t_st))))
-        data_highK_probe_condAV = voltdata_highK_probe_01[idx_probe_time_st:idx_probe_time_ed].reshape(i_wave, -1).T.mean(axis=0)
+        data_highK_probe_condAV = voltdata_highK_probe_01[idx_probe_time_st:idx_probe_time_ed:interval_time_probe].reshape(i_wave, -1).T.mean(axis=-1)
         data_highK_probe_condAV_01 = np.where(data_highK_probe_condAV<1, 0, 1)
         #data_highK_condAV = data_highK[idx_time_st:idx_time_ed].reshape(np.int(mod_freq*(t_ed-t_st)), -1).T.mean(axis=-1)
         data_highK_condAV = data_highK[idx_time_st:idx_time_ed].reshape(i_wave, -1).T.mean(axis=-1)
-        data_highK_condAV_mask = (data_highK[idx_time_st:idx_time_ed].reshape(i_wave, -1).T * data_highK_probe_condAV_01.T).mean(axis=-1)*i_wave/np.sum(data_highK_probe_condAV_01)
+        #data_highK_condAV_mask = (data_highK[idx_time_st:idx_time_ed].reshape(i_wave, -1).T * data_highK_probe_condAV_01.T).mean(axis=-1)*i_wave/np.sum(data_highK_probe_condAV_01)
+        data_highK_condAV_mask = (data_highK[idx_time_st:idx_time_ed].reshape(i_wave,
+                                                                              -1).T * data_highK_probe_condAV_01.reshape(
+            -1, 1)).mean(axis=-1) * i_wave / np.sum(data_highK_probe_condAV_01)
 
-        fs = 5e3#5e3#1e3
+        fs = 2e3#5e3#5e3#1e3
         dt = timedata[1] - timedata[0]
         #freq = fftpack.fftfreq(len(timedata[idx_time_st:idx_time_ed]), dt)
         freq = fftpack.fftfreq(len(timedata[:idx_time_period]), dt)
-        yf = fftpack.rfft(data_highK_condAV_mask) / (int(len(data_highK_condAV_mask) / 2))
+        #yf = fftpack.rfft(data_highK_condAV_mask) / (int(len(data_highK_condAV_mask) / 2))
+        yf = fftpack.rfft(data_highK_condAV) / (int(len(data_highK_condAV) / 2))
         yf2 = np.copy(yf)
         yf2[(freq > fs)] = 0
         yf2[(freq < 0)] = 0
         y2 = np.real(fftpack.irfft(yf2) * (int(len(data_highK_condAV_mask) / 2)))
 
+        # 時刻0から0.025sまでのデータを選択
+        start_time = 0
+        end_time = 0.025
+        timedata_condAV = timedata[:idx_time_period]-timedata[0]
+        mask = (timedata_condAV >= start_time) & (timedata_condAV <= end_time)
+        filtered_timedata = timedata_condAV[mask]
+        filtered_data = data_highK_condAV[mask]
 
+        # 0.003sから0.005sのデータを除外
+        exclude_start_time = 0.0029
+        exclude_end_time = 0.0051
+        exclude_mask = (filtered_timedata >= exclude_start_time) & (filtered_timedata <= exclude_end_time)
+        final_timedata = filtered_timedata[~exclude_mask]
+        final_data = filtered_data[~exclude_mask]
+
+        # フィッティング
+        initial_guess = [0, 0.001, 0.005, 0.0005]  # 初期パラメータの推定値
+        #initial_guess = [0, 0.001, 0.020, 0.0005]  # 初期パラメータの推定値
+        params, covariance = curve_fit(extreme_func, final_timedata, final_data, p0=initial_guess)
+        perr = np.sqrt(np.diag(covariance))
+        #perr =np.diag(params)
+
+        # フィッティング結果のパラメータ
+        y0_fit, A_fit, xc_fit, w_fit = params
+        y0_fit_err, A_fit_err, xc_fit_err, w_fit_err = perr
+        print(f"Fitted parameters for Extreme: \ny0 = {y0_fit}±{y0_fit_err}, \nA = {A_fit}±{A_fit_err}, \nxc = {xc_fit}±{xc_fit_err}, \nw = {w_fit}±{w_fit_err}")
+        reff_a99_highK_av = reff_a99_highK[idx_time_st:idx_time_ed].mean(axis=-1)
+        # 既に同じショット番号が存在するかチェック
+        existing_shots = set()
+        file_path = "fitting_parameter_Extreme_20240509.csv"
+        header = ['ShotNo', 'reff_a99_highK', 'y0', 'y0_error', 'A','A_error', 'xc', 'xc_error', 'w',  'w_error']
+        # 既存データの読み込み
+        data_rows = []
+        if os.path.exists(file_path):
+            with open(file_path, mode='r', newline='') as file:
+                reader = csv.reader(file)
+                data_rows = list(reader)
+
+        # ヘッダーが存在しない場合は追加
+        if not data_rows:
+            data_rows.append(header)
+
+        # 同じショット番号のデータが存在するかチェックし、存在する場合は上書き
+        new_row = [self.ShotNo, reff_a99_highK_av, y0_fit, y0_fit_err, A_fit, A_fit_err, xc_fit,  xc_fit_err, w_fit, w_fit_err]
+        shot_exists = False
+        for i, row in enumerate(data_rows):
+            if row[0] == str(self.ShotNo):
+                data_rows[i] = new_row
+                shot_exists = True
+                break
+
+        if not shot_exists:
+            data_rows.append(new_row)
+
+        # ファイルに書き込む
+        with open(file_path, mode='w', newline='') as file:
+            writer = csv.writer(file)
+            writer.writerows(data_rows)
+
+        print(f"Data for shot number {self.ShotNo} has been written to the file.")
+
+        '''
+        # フィッティング
+        initial_guess = [0.002]  # sの初期パラメータの推定値
+        params_2, covariance_2 = curve_fit(lognorm_func, final_timedata, final_data, p0=initial_guess)
+
+        # フィッティング結果のパラメータ
+        s_fit = params[0]
+        print(f"Fitted parameter for LogNorm: s = {s_fit}")
+        '''
+
+        # フィッティング曲線を生成
+        fit_curve = extreme_func(timedata_condAV, *params)
+        #fit_curve_2 = lognorm_func(timedata_condAV, *params_2)
+
+
+        '''
         fig = plt.figure(figsize=(8,6), dpi=150)
         plt.plot(timedata[:idx_time_period]-timedata[0], data_highK_condAV)#, label=label)
         plt.plot(timedata[:idx_time_period]-timedata[0], data_highK_condAV_mask, label='masked')#, label=label)
@@ -3712,9 +3817,33 @@ class ITB_Analysis:
         title = '%s, #%d, %.2fs-%.2fs, reff/a99=%.3f' % (data_name_highK, self.ShotNo, t_st, t_ed, reff_a99_highK[idx_time_st:idx_time_ed].mean(axis=-1))
         plt.title(title, fontsize=18, loc='right')
         plt.xlim(0, timedata[idx_time_period]-timedata[0])
+        #plt.xlim(0,0.1)
         plt.legend()
-        filename = "highK_condAV_mask_lowpass_t%dto%dms_No%d.png" %(int(t_st*1000), int(t_ed*1000), self.ShotNo)
-        #plt.savefig(filename)
+        filename = "highK_condAV_mask_lowpass_t%dto%dms_No%d_v2.png" %(int(t_st*1000), int(t_ed*1000), self.ShotNo)
+        plt.savefig(filename)
+        plt.show()
+        '''
+
+        fig = plt.figure(figsize=(8,6), dpi=150)
+        #plt.subplots_adjust(left=0.05, right=0.995, bottom=0.05, top=0.995)
+        plt.subplots_adjust(top=0.75)
+        plt.plot(timedata[:idx_time_period]-timedata[0], data_highK_condAV)#, label=label)
+        plt.plot(timedata[:idx_time_period]-timedata[0], data_highK_condAV_mask, label='masked')#, label=label)
+        plt.plot(final_timedata, final_data, 'b-', markersize=2, label='Data')
+        plt.plot(timedata_condAV, fit_curve, 'r-', linewidth=2, label='Extreme fit')
+        #plt.plot(timedata_condAV, fit_curve_2, 'y-', linewidth=2, label='LogNorm fit')
+        label_lowpass = 'Low-pass(<%dHz)' % fs
+        plt.plot(timedata[:idx_time_period]-timedata[0], y2, label=label_lowpass)#, label=label)
+        plt.xlabel('Time [sec]')
+        title = '%s, #%d, %.2fs-%.2fs, reff/a99=%.3f ' % (data_name_highK, self.ShotNo, t_st, t_ed, reff_a99_highK[idx_time_st:idx_time_ed].mean(axis=-1))
+        #title_2 = f"\nFitted parameters:y0 = {y0_fit}, A = {A_fit},\nxc = {xc_fit}, w = {w_fit}"
+        title_2 = f"\nFitted parameters for Extreme: \ny0 = {y0_fit}±{y0_fit_err}, \nA = {A_fit}±{A_fit_err}, \nxc = {xc_fit}±{xc_fit_err}, \nw = {w_fit}±{w_fit_err}"
+        plt.title(title+title_2, fontsize=13, loc='right')
+        plt.legend()
+        plt.xlim(0, 0.025)
+        plt.ylim(0, np.max(final_data)*1.1)
+        filename = "highK_condAV_mask_lowpass_t%dto%dms_No%d_fitting.png" %(int(t_st*1000), int(t_ed*1000), self.ShotNo)
+        plt.savefig(filename)
         plt.show()
 
         #filename = '_t%.2fto%.2f_%d.txt' % (t_st, t_ed, self.ShotNo)
@@ -5417,8 +5546,10 @@ class ITB_Analysis:
         ne_fit = data.getValData('ne_fit')
         t_ece, reffa99_ece, cond_av_ece = self.condAV_radh_highK_mp_trigLowPassRadh_multishots(t_st=4.0, t_ed=6, prom_min=0.4, prom_max=10.0)
         dTedt = (cond_av_ece[1:,:]-cond_av_ece[:-1,:])/(t_ece[1]-t_ece[0])
-        qe = np.zeros(np.shape(dTedt[:,1:]))
-        dqedr = np.zeros(np.shape(dTedt[:,1:]))
+
+        i_reff_integ_start = 6
+        qe = np.zeros(np.shape(dTedt[:, i_reff_integ_start:]))
+        dqedr = np.zeros(np.shape(dTedt[:, i_reff_integ_start:]))
 
         fig = plt.figure(figsize=(8,6), dpi=150)
         #title = 'Low-pass(<%dkHz), Prominence:%.1fto%.1f, #%d-%d' % (fs/1e3, prom_min, prom_max, shot_st, shot_ed)
@@ -5433,21 +5564,22 @@ class ITB_Analysis:
         plt.show()
         plt.close()
 
-        for i in range(len(t_ece)-1):
+        f = interp1d(reffa99[52], dVdreff[52], kind='cubic')
+        dVdreff_ece = f(reffa99_ece)
+        f2 = interp1d(reffa99[52], reff[52], kind='cubic')
+        reff_ece = f2(reffa99_ece)
+        f3 = interp1d(reffa99[52], ne_fit[52], kind='cubic')
+        ne_fit_ece = f3(reffa99_ece)
 
-            f = interp1d(reffa99[52], dVdreff[52], kind='cubic')
-            dVdreff_ece = f(reffa99_ece)
-            f2 = interp1d(reffa99[52], reff[52], kind='cubic')
-            reff_ece = f2(reffa99_ece)
-            f3 = interp1d(reffa99[52], ne_fit[52], kind='cubic')
-            ne_fit_ece = f(reffa99_ece)
-            qe[i,:] = -(3/2)*integrate.cumtrapz(ne_fit_ece[1:]*dTedt[i,1:]*dVdreff_ece[1:]*(reff_ece[1:]-reff_ece[:-1]), reff_ece[1:], initial=0)/(dVdreff_ece[1:]*ne_fit_ece[1:])
-            dqedr[i,:] = ne_fit_ece[1:]*dTedt[i,1:]*dVdreff_ece[1:]*(reffa99_ece[1:]-reffa99_ece[:-1])
+        for i in range(len(t_ece)-i_reff_integ_start):
+
+            qe[i,:] = -(3/2)*integrate.cumtrapz(ne_fit_ece[i_reff_integ_start:]*dTedt[i,i_reff_integ_start:]*dVdreff_ece[i_reff_integ_start:]*(reff_ece[i_reff_integ_start:]-reff_ece[i_reff_integ_start-1:-1]), reff_ece[i_reff_integ_start:], initial=0)/(dVdreff_ece[i_reff_integ_start:]*ne_fit_ece[i_reff_integ_start:])
+            dqedr[i,:] = ne_fit_ece[i_reff_integ_start:]*dTedt[i,i_reff_integ_start:]*dVdreff_ece[i_reff_integ_start:]*(reffa99_ece[i_reff_integ_start:]-reffa99_ece[i_reff_integ_start-1:-1])
 
         fig = plt.figure(figsize=(8,6), dpi=150)
         #title = 'Low-pass(<%dkHz), Prominence:%.1fto%.1f, #%d-%d' % (fs/1e3, prom_min, prom_max, shot_st, shot_ed)
         #plt.title(title, fontsize=16, loc='right')
-        plt.pcolormesh(1e3*t_ece[1:], reffa99_ece, dqedr.T, cmap='bwr')#, vmin=-20, vmax=20)
+        plt.pcolormesh(1e3*t_ece[1:], reffa99_ece[i_reff_integ_start:], dqedr.T, cmap='bwr')#, vmin=-20, vmax=20)
         cb = plt.colorbar()
         cb.set_label("dqe/dreff/ne", fontsize=18)
         plt.xlabel("Time [ms]", fontsize=18)
@@ -5460,7 +5592,7 @@ class ITB_Analysis:
         fig = plt.figure(figsize=(8,6), dpi=150)
         #title = 'Low-pass(<%dkHz), Prominence:%.1fto%.1f, #%d-%d' % (fs/1e3, prom_min, prom_max, shot_st, shot_ed)
         #plt.title(title, fontsize=16, loc='right')
-        plt.pcolormesh(1e3*t_ece[1:], reffa99_ece, qe.T, cmap='bwr')#, vmin=-0.050, vmax=0.05)
+        plt.pcolormesh(1e3*t_ece[1:], reffa99_ece[i_reff_integ_start:], qe.T, cmap='bwr')#, vmin=-0.050, vmax=0.05)
         cb = plt.colorbar()
         cb.set_label("qe/ne", fontsize=18)
         plt.xlabel("Time [ms]", fontsize=18)
@@ -5477,6 +5609,9 @@ class ITB_Analysis:
         plt.plot(reffa99_ece, dVdreff_ece)
         plt.show()
         '''
+        plt.plot(reffa99[52], ne_fit[52])
+        plt.plot(reffa99_ece, ne_fit_ece)
+        plt.show()
 
     def plot_TS(self):
         data = AnaData.retrieve('tsmap_calib', self.ShotNo, 1)
@@ -6104,6 +6239,13 @@ def delete_column(array, col):
 def func(x, a, b):
     return a * x + b
 
+
+# Extreme関数の定義
+def extreme_func(x, y0, A, xc, w):
+    return y0 + A * (-np.exp(-(x - xc) / w) - (x - xc) / w + 1)# LogNormal関数の定義
+def lognorm_func(x, s):
+    return (1 / (s * x * np.sqrt(2 * np.pi))) * np.exp(- (np.log(x))**2 / (2 * s**2))
+
 if __name__ == "__main__":
     start = time.time()
     #test_laplace_asymmetric()
@@ -6129,7 +6271,7 @@ if __name__ == "__main__":
     #ana_findpeaks_shotarray()
     #ana_delaytime_shotarray()
     #itba = ITB_Analysis(int(ShotNo))
-    itba = ITB_Analysis(188787, 169693)#167088), 163958
+    itba = ITB_Analysis(190898, 169693)#167088), 163958
     #itba.conditional_average_highK_mppk(t_st=4.3, t_ed=4.60)
     #ShotNos = np.arange(178939, 178970)
     #ShotNos = 169690 + np.array([2,3,8,9,17,18,20,22,24,25])
@@ -6144,7 +6286,7 @@ if __name__ == "__main__":
     #itba.ana_plot_ece_qe(isSaveData=False)
     #itba.ana_plot_discharge_waveform4ITB(isSaveData=False)
     #itba.ana_plot_radh(t_st=4.40, t_ed=4.6)
-    #itba.condAV_radh_highK_mp_trigLowPassRadh(t_st=4.0, t_ed=6, prom_min=0.4, prom_max=1.0)
+    #itba.condAV_radh_highK_mp_trigLowPassRadh(t_st=5.07, t_ed=6.97, prom_min=0.4, prom_max=1.0)
     #itba.condAV_DBS_trigLowPassRadh(t_st=4.0, t_ed=6, prom_min=0.4, prom_max=1.0, Mode_ece_radhpxi_calThom=True)
     #itba.condAV_wp_trigLowPassRadh(t_st=4.0, t_ed=6, prom_min=0.4, prom_max=1.0, Mode_ece_radhpxi_calThom=True)
     #itba.condAV_qe_trigLowPassRadh(t_st=4.0, t_ed=6, prom_min=0.4, prom_max=1.0, Mode_ece_radhpxi_calThom=True)
@@ -6156,15 +6298,20 @@ if __name__ == "__main__":
     #itba.condAV_nel_trigLowPassRadh_multishots(t_st=4.0, t_ed=6, prom_min=0.4, prom_max=10.0)
     #itba.condAV_DBS_trigLowPassRadh_multishots(t_st=4.0, t_ed=6, prom_min=0.4, prom_max=10.0)
     #itba.condAV_wp_trigLowPassRadh_multishots(t_st=4.0, t_ed=6, prom_min=0.4, prom_max=10.0)
-    itba.calc_qe()
+    #itba.calc_qe()
     #itba.ana_plot_DBS_fft()
     #itba.ana_plot_radh_highK(t_st=3.3, t_ed=7.300)
     #itba.fft_all_radh(t_st=4, t_ed=6)
     #itba.plot_NBI_ASTI()
-    #itba.ana_plot_highK_condAV_MECH(t_st=5.00, t_ed=6.0, mod_freq=10)
+    #itba.ana_plot_highK_condAV_MECH(t_st=5.198, t_ed=6.798, mod_freq=2.5)
+    #itba.ana_plot_highK_condAV_MECH(t_st=5.00, t_ed=7.0, mod_freq=5)
+    #itba.ana_plot_highK_condAV_MECH(t_st=5.198, t_ed=6.998, mod_freq=5)
+    itba.ana_plot_highK_condAV_MECH(t_st=5.098, t_ed=6.998, mod_freq=10)
+    #itba.ana_plot_CTRLDISP1_condAV_MECH(t_st=5.00, t_ed=7.0, mod_freq=5)
+    #itba.ana_plot_highK_condAV_MECH(t_st=5.998, t_ed=6.998, mod_freq=1)
     #itba.normalize_highK_w_gradTe(t_st=3.30, t_ed=4.30, mod_freq=40, isSaveData=True)
     #itba.ana_plot_radh_condAV_MECH(t_st=5.0, t_ed=7.0, mod_freq=1)
-    #itba.ana_plot_radh_condAV_MECH(t_st=5, t_ed=7, mod_freq=10)
+    #itba.ana_plot_radh_condAV_MECH(t_st=5, t_ed=7, mod_freq=5)
     #itba.ana_plot_radhpxi_calThom_condAV_MECH(t_st=3.40, t_ed=4.3, mod_freq=40)
     #itba.plot_TS()
     #itba.plot_2TS()
