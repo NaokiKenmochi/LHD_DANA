@@ -3719,7 +3719,7 @@ class ITB_Analysis:
                                                                               -1).T * data_highK_probe_condAV_01.reshape(
             -1, 1)).mean(axis=-1) * i_wave / np.sum(data_highK_probe_condAV_01)
 
-        fs = 2e3#5e3#5e3#1e3
+        fs = 5e3#5e3#5e3#1e3
         dt = timedata[1] - timedata[0]
         #freq = fftpack.fftfreq(len(timedata[idx_time_st:idx_time_ed]), dt)
         freq = fftpack.fftfreq(len(timedata[:idx_time_period]), dt)
@@ -3757,6 +3757,7 @@ class ITB_Analysis:
         y0_fit_err, A_fit_err, xc_fit_err, w_fit_err = perr
         print(f"Fitted parameters for Extreme: \ny0 = {y0_fit}±{y0_fit_err}, \nA = {A_fit}±{A_fit_err}, \nxc = {xc_fit}±{xc_fit_err}, \nw = {w_fit}±{w_fit_err}")
         reff_a99_highK_av = reff_a99_highK[idx_time_st:idx_time_ed].mean(axis=-1)
+        '''
         # 既に同じショット番号が存在するかチェック
         existing_shots = set()
         file_path = "fitting_parameter_Extreme_20240509.csv"
@@ -3790,6 +3791,7 @@ class ITB_Analysis:
             writer.writerows(data_rows)
 
         print(f"Data for shot number {self.ShotNo} has been written to the file.")
+        '''
 
         '''
         # フィッティング
@@ -3806,7 +3808,6 @@ class ITB_Analysis:
         #fit_curve_2 = lognorm_func(timedata_condAV, *params_2)
 
 
-        '''
         fig = plt.figure(figsize=(8,6), dpi=150)
         plt.plot(timedata[:idx_time_period]-timedata[0], data_highK_condAV)#, label=label)
         plt.plot(timedata[:idx_time_period]-timedata[0], data_highK_condAV_mask, label='masked')#, label=label)
@@ -3820,7 +3821,7 @@ class ITB_Analysis:
         #plt.xlim(0,0.1)
         plt.legend()
         filename = "highK_condAV_mask_lowpass_t%dto%dms_No%d_v2.png" %(int(t_st*1000), int(t_ed*1000), self.ShotNo)
-        plt.savefig(filename)
+        #plt.savefig(filename)
         plt.show()
         '''
 
@@ -3845,6 +3846,7 @@ class ITB_Analysis:
         filename = "highK_condAV_mask_lowpass_t%dto%dms_No%d_fitting.png" %(int(t_st*1000), int(t_ed*1000), self.ShotNo)
         plt.savefig(filename)
         plt.show()
+        '''
 
         #filename = '_t%.2fto%.2f_%d.txt' % (t_st, t_ed, self.ShotNo)
         #np.savetxt('radh_array' + filename, voltdata_array)
@@ -3871,11 +3873,11 @@ class ITB_Analysis:
         rho = data_radhinfo.getValData('rho')
         timedata = data.getDimData('Time')#TimeData.retrieve(data_name_pxi, self.ShotNo, 1, 1).get_val()
         idx_time_st = find_closest(timedata, t_st)
-        idx_time_ed = find_closest(timedata, t_ed)
+        idx_time_ed = find_closest(timedata, t_ed)#-1
         idx_time_period = find_closest(timedata, t_st + 1.0/mod_freq) - idx_time_st
         voltdata_array = np.zeros((len(timedata[:idx_time_period]), 32))
         #fs = 1e3
-        fs = 5e3
+        fs = 2e3#5e3
         dt = timedata[1] - timedata[0]
         #freq = fftpack.fftfreq(len(timedata[idx_time_st:idx_time_ed]), dt)
         freq = fftpack.fftfreq(len(timedata[:idx_time_period]), dt)
@@ -4364,14 +4366,35 @@ class ITB_Analysis:
         #timedata_gradTe, rho_gradTe, data_gradTe = self.ana_plot_radh_condAV_MECH(t_st, t_ed, mod_freq)
         timedata_gradTe, rho_gradTe, data_gradTe = self.ana_plot_radhpxi_calThom_condAV_MECH(t_st, t_ed, mod_freq)
         timedata_highK *= 1e3
-        timedata_highK_ = np.linspace(0, 25, len(timedata_highK))
-        timedata_gradTe_ = np.linspace(0, 25, len(timedata_gradTe))
+        timedata_highK_ = np.linspace(0, 1/mod_freq, len(timedata_highK))
+        timedata_gradTe_ = np.linspace(0, 1/mod_freq, len(timedata_gradTe))
         f = interp1d(timedata_highK_, data_highK, kind='cubic')
         data_highK_extended = f(timedata_gradTe_)
         #plt.plot(timedata_highK_, data_highK)
         #plt.plot(timedata_gradTe_, data_highK_extended+0.001)
         print(rho_gradTe)
-        i_rho =1
+        i_rho =14#13#19#17#15#9#12#16#7#20
+        # 1. Aの0.003-0.005秒の間の平均値をA全体から差し引く
+        # 0.003sから0.005sのデータを除外
+        exclude_start_time = 0.0031
+        exclude_end_time = 0.0049
+        idx_A_range = np.where((timedata_gradTe_>= exclude_start_time) & (timedata_gradTe_<= exclude_end_time))
+        mean_A_range = np.mean(data_highK_extended[idx_A_range])
+        A2 = data_highK_extended- mean_A_range
+
+        # 2. Bが最大値を取る時刻の前後0.001秒のAの値の平均値を求める
+        max_B_time =timedata_gradTe_[np.argmax(-1*data_gradTe[:, i_rho])]
+        idx_A_near_max_B = np.where((timedata_gradTe_>= (max_B_time - 0.003)) & (timedata_gradTe_<= (max_B_time + 0.003)))
+        mean_A_near_max_B = np.mean(A2[idx_A_near_max_B])
+
+        # 3. Bを0からmean_A_near_max_Bの範囲に規格化
+        B2 = (-1*data_gradTe[:, i_rho] - np.min(-1*data_gradTe[:, i_rho])) / (np.max(-1*data_gradTe[:, i_rho]) - np.min(-1*data_gradTe[:, i_rho])) * mean_A_near_max_B
+        B2 = -1*data_gradTe[:, i_rho] / np.max(-1*data_gradTe[:, i_rho]) * mean_A_near_max_B
+
+        # 4. A2からB2を差し引いたデータCを求める
+        C = A2 - B2
+
+
         label_gradTe = 'r/a=%.3f)' % rho_gradTe[i_rho]
         plt.plot(timedata_gradTe_, data_gradTe[:, i_rho], label='gradTe(' + label_gradTe)
         label_gradTe = 'r/a=%.3f)' % rho_gradTe[i_rho+1]
@@ -4381,11 +4404,13 @@ class ITB_Analysis:
         plt.xlabel('Time [msec]')
         plt.legend()
         plt.show()
+
+        label_highK = 'r/a=%.3f)' % rho_highK
+        label_gradTe = 'r/a=%.3f)' % ((rho_gradTe[i_rho]+rho_gradTe[i_rho+1])/2)
+        '''
         title = '#%d, %.2fs-%.2fs' % (self.ShotNo, t_st, t_ed)
         plt.title(title)
         #label_gradTe = 'r/a=%.3f)' % rho_gradTe[i_rho]
-        label_highK = 'r/a=%.3f)' % rho_highK
-        label_gradTe = 'r/a=%.3f)' % rho_gradTe[i_rho]
         plt.plot(timedata_gradTe_, normalize_0_1(-1*data_gradTe[:, i_rho]), label='gradTe(' + label_gradTe, color='blue')
         #label_gradTe = 'r/a=%.3f)' % rho_gradTe[i_rho+1]
         #plt.plot(timedata_gradTe_, normalize_0_1(-1*data_gradTe[:, i_rho+1]), label='gradTe(' + label_gradTe, color='green')
@@ -4393,6 +4418,67 @@ class ITB_Analysis:
         plt.xlabel('Time [msec]')
         plt.legend()
         plt.show()
+        '''
+
+
+        title = '#%d, %.2fs-%.2fs' % (self.ShotNo, t_st, t_ed)
+        fig = plt.figure()
+        plt.title(title)
+        ax1 = fig.add_subplot(111)
+        #label_gradTe = 'r/a=%.3f)' % rho_gradTe[i_rho]
+        ln1=ax1.plot(timedata_gradTe_, -1*data_gradTe[:, i_rho], label='gradTe(' + label_gradTe, color='blue')
+        ax2 = ax1.twinx()
+        #label_gradTe = 'r/a=%.3f)' % rho_gradTe[i_rho+1]
+        #plt.plot(timedata_gradTe_, normalize_0_1(-1*data_gradTe[:, i_rho+1]), label='gradTe(' + label_gradTe, color='green')
+        ln2=ax2.plot(timedata_gradTe_, data_highK_extended, label='highK(' + label_highK, color='red')
+        h1, l1 = ax1.get_legend_handles_labels()
+        h2, l2 = ax2.get_legend_handles_labels()
+        ax1.legend(h1 + h2, l1 + l2, loc='lower right')
+        ax1.set_ylabel('grad T_e [keV/m]')
+        ax1.grid(True)
+        ax2.set_ylabel('e-scale turb. [a.u.]')
+        ax1.set_xlabel('Time [msec]')
+        ax1.set_ylim(0,0.13)
+        #plt.legend()
+        plt.show()
+
+        fig = plt.figure(figsize=(6,4.5), dpi=150)
+        title = '#%d, %.2fs-%.2fs' % (self.ShotNo, t_st, t_ed)
+        plt.title(title)
+        #plt.plot(timedata_gradTe_, 1*data_gradTe[:, i_rho]+data_highK_extended*0.12/0.0007)
+        #plt.plot(timedata_gradTe_, 1*data_gradTe[:, i_rho]*0.0007/0.12+data_highK_extended)
+        plt.plot(timedata_gradTe_, A2, 'r-', label='e-scale turb.(' + label_highK)
+        plt.plot(timedata_gradTe_[idx_A_range], A2[idx_A_range], color='black')
+        plt.plot(timedata_gradTe_, C, 'g-', label='coupling comp. of turb.')
+        plt.plot(timedata_gradTe_, B2, 'b-', label='normalized gradTe('+label_gradTe)
+        plt.grid(True)
+        plt.legend()
+        plt.xlabel("Time [s]", fontsize=18)
+        filename = 'turb_gradTe_coupling_condAV_%d.png' % self.ShotNo
+        plt.savefig(filename)
+        plt.xlim(0, np.max(timedata_gradTe_))
+        plt.show()
+
+        '''
+        fig = plt.figure(figsize=(6,4.5), dpi=150)
+        title = '#%d, %.2fs-%.2fs' % (self.ShotNo, t_st, t_ed)
+        plt.title(title)
+        #plt.plot(timedata_gradTe_, 1*data_gradTe[:, i_rho]+data_highK_extended*0.12/0.0007)
+        #plt.plot(timedata_gradTe_, 1*data_gradTe[:, i_rho]*0.0007/0.12+data_highK_extended)
+        plt.plot(timedata_gradTe_, A2, 'r-', label='e-scale turb.(' + label_highK)
+        plt.plot(timedata_gradTe_[idx_A_range], A2[idx_A_range], color='black')
+        plt.plot(timedata_gradTe_, C, 'g-', label='coupling comp. of turb.')
+        plt.plot(timedata_gradTe_, B2, 'b-', label='normalized gradTe('+label_gradTe)
+        plt.grid(True)
+        plt.legend()
+        plt.xlabel("Time [s]", fontsize=18)
+        plt.xlim(0, 0.1)
+        filename = 'turb_gradTe_coupling_condAV_expand_%d.png' % self.ShotNo
+        plt.savefig(filename)
+        plt.show()
+        '''
+
+        '''
         plt.plot(timedata_gradTe_, -1*data_highK_extended/data_gradTe[:, i_rho])
         plt.ylim(-1,1)
         plt.show()
@@ -4401,6 +4487,7 @@ class ITB_Analysis:
         plt.xlabel('gradTe')
         plt.ylabel('e-scale turb.')
         plt.show()
+        '''
         if isSaveData:
             t_data_gradTe = np.stack((timedata_gradTe_, normalize_0_1(-1*data_gradTe[:, i_rho])))
             #t_data_highK = np.stack((timedata_gradTe_, normalize_0_1(data_highK_extended)))
@@ -6306,10 +6393,13 @@ if __name__ == "__main__":
     #itba.ana_plot_highK_condAV_MECH(t_st=5.198, t_ed=6.798, mod_freq=2.5)
     #itba.ana_plot_highK_condAV_MECH(t_st=5.00, t_ed=7.0, mod_freq=5)
     #itba.ana_plot_highK_condAV_MECH(t_st=5.198, t_ed=6.998, mod_freq=5)
-    itba.ana_plot_highK_condAV_MECH(t_st=5.098, t_ed=6.998, mod_freq=10)
+    #itba.ana_plot_highK_condAV_MECH(t_st=5.098, t_ed=6.998, mod_freq=10)
     #itba.ana_plot_CTRLDISP1_condAV_MECH(t_st=5.00, t_ed=7.0, mod_freq=5)
     #itba.ana_plot_highK_condAV_MECH(t_st=5.998, t_ed=6.998, mod_freq=1)
-    #itba.normalize_highK_w_gradTe(t_st=3.30, t_ed=4.30, mod_freq=40, isSaveData=True)
+    itba.normalize_highK_w_gradTe(t_st=5.098, t_ed=6.998, mod_freq=10, isSaveData=False)
+    #itba.normalize_highK_w_gradTe(t_st=5.998, t_ed=6.998, mod_freq=1, isSaveData=False)
+    #itba.normalize_highK_w_gradTe(t_st=5.198, t_ed=6.7980001, mod_freq=2.5, isSaveData=False)
+    #itba.normalize_highK_w_gradTe(t_st=5.198, t_ed=6.998, mod_freq=5, isSaveData=False)
     #itba.ana_plot_radh_condAV_MECH(t_st=5.0, t_ed=7.0, mod_freq=1)
     #itba.ana_plot_radh_condAV_MECH(t_st=5, t_ed=7, mod_freq=5)
     #itba.ana_plot_radhpxi_calThom_condAV_MECH(t_st=3.40, t_ed=4.3, mod_freq=40)
