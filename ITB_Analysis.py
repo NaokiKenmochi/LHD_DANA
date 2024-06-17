@@ -3694,7 +3694,7 @@ class ITB_Analysis:
 
         dnum = data_fast.getDimNo()
         for i in range(dnum):
-            print(i, data.getDimName(i), data.getDimUnit(i))
+            print(i, data_fast.getDimName(i), data_fast.getDimUnit(i))
         vnum = data_fast.getValNo()
         for i in range(vnum):
             print(i, data_fast.getValName(i), data_fast.getValUnit(i))
@@ -3712,30 +3712,29 @@ class ITB_Analysis:
 
         interval_time_probe = 10
         idx_time_st = find_closest(timedata, t_st)
-        idx_time_ed = find_closest(timedata, t_ed)#+1
-        idx_time_period = find_closest(timedata, t_st + 1/mod_freq) - idx_time_st# + 1
+        idx_time_ed = find_closest(timedata, t_ed)+10#1
+        idx_time_period = find_closest(timedata, t_st + 1/mod_freq) - idx_time_st + 1
         i_wave = np.int(Decimal(str(mod_freq))*(Decimal(str(t_ed))-Decimal(str(t_st))))
         #data_highK_condAV = data_highK[idx_time_st:idx_time_ed].reshape(np.int(mod_freq*(t_ed-t_st)), -1).T.mean(axis=-1)
         #data_DBS_condAV_ = data_DBS_2D[idx_time_st:idx_time_ed,:].reshape(idx_time_period, i_wave,vnum)
         #data_DBS_condAV = data_DBS_2D[idx_time_st:idx_time_ed,:].reshape(idx_time_period, i_wave, vnum).T.mean(axis=1)
         #data_DBS_condAV = data_DBS_2D[idx_time_st:idx_time_ed,:].reshape(idx_time_period, i_wave, vnum).mean(axis=1)
         #data_highK_condAV_mask = (data_highK[idx_time_st:idx_time_ed].reshape(i_wave, -1).T * data_highK_probe_condAV_01.T).mean(axis=-1)*i_wave/np.sum(data_highK_probe_condAV_01)
-        data_DBS_condAV[:, i] = data_DBS_2D[idx_time_st:idx_time_ed, i].reshape(i_wave, -1).T.mean(axis=-1)
         data_DBS_condAV = np.zeros((idx_time_period, vnum))
-        for i in range(vnum):
-            data_DBS_condAV[:,i] = data_DBS_2D[idx_time_st:idx_time_ed,i].reshape(i_wave, -1).T.mean(axis=-1)
 
-        fig = plt.figure(figsize=(8,6), dpi=150)
-        plt.plot(timedata[:idx_time_period]-timedata[0], data_DBS_condAV)#, label=label)
+        fig = plt.figure(figsize=(6,4), dpi=150)
+        for i in range(vnum):
+            data_DBS_condAV[:,i] = data_PCI_2D[idx_time_st:idx_time_ed,i].reshape(i_wave, -1).T.mean(axis=-1)
+            plt.plot(timedata[:idx_time_period]-timedata[0], data_DBS_condAV[:,i], label=data_fast.getValName(i))
         #plt.xlim(4.4, 4.6)
         plt.xlabel('Time [sec]')
-        title = '%s, #%d, %.2fs-%.2fs' % (data_name_DBS, self.ShotNo, t_st, t_ed)
+        title = ' #%d, %.2fs-%.2fs' % (self.ShotNo, t_st, t_ed)
         plt.title(title, fontsize=18, loc='right')
         plt.xlim(0, timedata[idx_time_period]-timedata[0])
         #plt.xlim(0,0.1)
         plt.legend()
-        filename = "highK_condAV_mask_lowpass_t%dto%dms_No%d_v2.png" %(int(t_st*1000), int(t_ed*1000), self.ShotNo)
-        #plt.savefig(filename)
+        filename = "PCI_condAV_t%dto%dms_No%d.png" %(int(t_st*1000), int(t_ed*1000), self.ShotNo)
+        plt.savefig(filename)
         plt.show()
 
     def ana_plot_DBS_condAV_MECH(self, t_st, t_ed, mod_freq):
@@ -3746,7 +3745,7 @@ class ITB_Analysis:
         #data_comb_R_power = AnaData.retrieve(data_name_comb_R_power, self.ShotNo, 1)
         #data_9o_R_Iamp = AnaData.retrieve(data_name_9o_R_Iamp, self.ShotNo, 1)
 
-        timedata = data_DBS.getDimData("Time")
+        timedata = data_DBS.getDimData("Time", fontsize=18)
         #t_data_9o_comb_Iamp = data_9o_comb_Iamp.getDimData("Time")
         #t_data_comb_R_power = data_comb_R_power.getDimData("Time")
         vnum = data_DBS.getValNo()
@@ -6517,7 +6516,7 @@ if __name__ == "__main__":
     #itba.condAV_nel_trigLowPassRadh(t_st=4.0, t_ed=6, prom_min=0.4, prom_max=1.0, Mode_ece_radhpxi_calThom=True)
     #itba.condAV_radh_highK_mp_trigLowPassRadh_multishots(t_st=4.0, t_ed=6, prom_min=0.4, prom_max=1.0)
     #itba.condAV_radh_highK_mp_trigLowPassRadh_multishots(t_st=4.0, t_ed=6, prom_min=0.4, prom_max=10.0)
-    itba.condAV_pci_trigLowPassRadh_multishots(t_st=4.0, t_ed=6, prom_min=0.4, prom_max=10.0)
+    #itba.condAV_pci_trigLowPassRadh_multishots(t_st=4.0, t_ed=6, prom_min=0.4, prom_max=10.0)
     #itba.condAV_qe_trigLowPassRadh_multishots(t_st=4.0, t_ed=6, prom_min=0.4, prom_max=10.0)
     #itba.condAV_nel_trigLowPassRadh_multishots(t_st=4.0, t_ed=6, prom_min=0.4, prom_max=10.0)
     #itba.condAV_DBS_trigLowPassRadh_multishots(t_st=4.0, t_ed=6, prom_min=0.4, prom_max=10.0)
@@ -6532,6 +6531,8 @@ if __name__ == "__main__":
     #itba.ana_plot_highK_condAV_MECH(t_st=5.198, t_ed=6.998, mod_freq=5)
     #itba.ana_plot_highK_condAV_MECH(t_st=5.098, t_ed=6.998, mod_freq=10)
     itba.ana_plot_DBS_condAV_MECH(t_st=5.098, t_ed=6.998, mod_freq=10)
+    #itba.ana_plot_PCI_condAV_MECH(t_st=5.098, t_ed=6.998, mod_freq=10)
+    #itba.ana_plot_PCI_condAV_MECH(t_st=5.998, t_ed=6.998, mod_freq=1)
     #itba.ana_plot_DBS_condAV_MECH(t_st=5.198, t_ed=6.998, mod_freq=5)
     #itba.ana_plot_CTRLDISP1_condAV_MECH(t_st=5.00, t_ed=7.0, mod_freq=5)
     #itba.ana_plot_highK_condAV_MECH(t_st=5.998, t_ed=6.998, mod_freq=1)
