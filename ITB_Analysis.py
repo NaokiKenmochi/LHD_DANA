@@ -4034,11 +4034,14 @@ class ITB_Analysis:
         #return timedata[:idx_time_period]-timedata[0], reff_a99_highK[idx_time_st:idx_time_ed].mean(axis=-1), y2
 
     def ana_plot_DBSADC_condAV_MECH(self, t_st, t_ed, mod_freq):
+        ch_I = 9
+        ch_Q = 10
+        #data_name_DBS = 'MWRM-COMB'    #3-O port comb-R
         #data_name_DBS = 'MWRM-COMB2'    #9-O port comb
         data_name_DBS = 'MWRM-PXI'      #9-O R
-        voltdata_DBS_I = VoltData.retrieve(data_name_DBS,self.ShotNo, 1, 9).get_val()
-        voltdata_DBS_Q = VoltData.retrieve(data_name_DBS,self.ShotNo, 1, 10).get_val()
-        timedata_DBS = TimeData.retrieve(data_name_DBS, self.ShotNo, 1, 1).get_val()
+        voltdata_DBS_I = VoltData.retrieve(data_name_DBS,self.ShotNo, 1,ch_I).get_val()
+        voltdata_DBS_Q = VoltData.retrieve(data_name_DBS,self.ShotNo, 1,ch_Q).get_val()
+        timedata_DBS = TimeData.retrieve(data_name_DBS, self.ShotNo, 1, ch_I).get_val()
 
         # サンプリング周波数の計算
         fs = 1 / (timedata_DBS[1] - timedata_DBS[0])
@@ -4056,13 +4059,17 @@ class ITB_Analysis:
         freqs = fftfreq(len(filtered_signal), 1 / fs)
 
         # 周波数スペクトルのプロット
-        plt.figure(figsize=(12, 6))
+        plt.figure(figsize=(6, 6))
         plt.plot(freqs[:len(freqs) // 2], np.abs(fft_result)[:len(freqs) // 2])
-        plt.title('Frequency Spectrum (5s-7s)')
         plt.xlabel('Frequency [Hz]')
         plt.ylabel('Amplitude')
         plt.xscale('log')
         plt.yscale('log')
+        title = '%s(ch.:%d), #%d, t=%.4f-%.4fs' % (data_name_DBS, ch_I, self.ShotNo, t_st, t_ed)
+        title = '%s(ch.:%d), #%d, t=%.4f-%.4fs' % (data_name_DBS, ch_I, self.ShotNo, t_st, t_ed)
+        plt.title(title)
+        filename = 'Freq_Spectrum_%s_ch%d_SN%d.png' % (data_name_DBS, ch_I, self.ShotNo)
+        plt.savefig(filename)
         plt.show()
 
         # スペクトログラムの計算
@@ -4072,50 +4079,83 @@ class ITB_Analysis:
 
         # スペクトログラムのプロット
         plt.figure(figsize=(12, 6))
-        plt.pcolormesh(times + start_time, frequencies, 10 * np.log10(Sxx), cmap='jet')#shading='gouraud')
+        plt.pcolormesh(times + start_time, frequencies, 10 * np.log10(Sxx), cmap='jet', vmin=-100, vmax=-70)#shading='gouraud')
         plt.colorbar(label='Intensity [dB]')
-        plt.title('Spectrogram (5s-7s, 0-10kHz)')
+        title = '%s(ch.:%d), #%d, t=%.4f-%.4fs' % (data_name_DBS, ch_I, self.ShotNo, t_st, t_ed)
+        plt.title(title)
         plt.xlabel('Time [s]')
         plt.ylabel('Frequency [Hz]')
-        plt.ylim([0, 30000])  # 表示範囲を0から10kHzまでに設定
-        plt.xlim(5,5.5)
+        plt.ylim([0, 10000])  # 表示範囲を0から10kHzまでに設定
+        plt.xlim(5.1,5.5)
+        filename = 'Spectgram_%s_ch%d_SN%d.png' % (data_name_DBS, ch_I, self.ShotNo)
+        plt.savefig(filename)
         plt.show()
-        # バターワースバンドパスフィルタの設計
-        lowcut = 30000  # カットオフ周波数 1kHz
-        highcut = 150000  # カットオフ周波数 10kHz
-        order = 5
-        nyquist = 0.5 * fs
-        low = lowcut / nyquist
-        high = highcut / nyquist
-        b, a = butter(order, [low, high], btype='band')
-
-        # フィルタを適用
-        filtered_signal = filtfilt(b, a, voltdata_DBS_I)
 
         # フーリエ変換
         fft_result = fft(filtered_signal)
 
-        # 複素振幅の計算（逆フーリエ変換）
+        # 複素振幅の計算
         complex_amplitude = ifft(fft_result)
 
-        # 複素振幅強度の計算
+        # 複素振幅の絶対値を計算（複素振幅強度）
         amplitude_strength = np.abs(complex_amplitude)
 
+        # バターワースバンドパスフィルタの設計
+        #lowcut = 20000#1000  # カットオフ周波数 1kHz
+        #highcut = 80000#10000  # カットオフ周波数 10kHz
+        lowcut = 20000#1000  # カットオフ周波数 1kHz
+        highcut = 490000#10000  # カットオフ周波数 10kHz
+        #lowcut = 1000  # カットオフ周波数 1kHz
+        #highcut = 10000  # カットオフ周波数 10kHz
+        order = 3#5
+        nyquist = 0.5 * fs
+        low = lowcut / nyquist
+        high = highcut / nyquist
+        b, a = butter(order, [low, high], btype='band')
+        #b, a = butter(order, low, btype='low', analog=False)
+
+        # 複素振幅強度にフィルタを適用
+        filtered_amplitude_strength = np.abs(filtfilt(b, a, amplitude_strength))
+
+
+
         idx_time_st = find_closest(timedata_DBS, t_st)
-        idx_time_ed = find_closest(timedata_DBS, t_ed)#+1
+        idx_time_ed = find_closest(timedata_DBS, t_ed)+1
         idx_time_period = find_closest(timedata_DBS, t_st + 1/mod_freq) - idx_time_st + 1
         i_wave = np.int(Decimal(str(mod_freq))*(Decimal(str(t_ed))-Decimal(str(t_st))))
 
-        data_DBS_condAV = amplitude_strength[idx_time_st:idx_time_ed].reshape(i_wave, -1).T.mean(axis=-1)
+        #data_DBS_condAV = filtered_amplitude_strength[idx_time_st:idx_time_ed].reshape(i_wave, -1).T.mean(axis=-1)
+        data_DBS_condAV = filtered_amplitude_strength.reshape(i_wave, -1).T.mean(axis=-1)
+        #data_DBS_condAV = amplitude_strength.reshape(i_wave, -1).T.mean(axis=-1)
+        fs = 1e3#5e3#5e3#1e3
+        dt = timedata_DBS[1]-timedata_DBS[0]
+        freq = fftpack.fftfreq(len(timedata_DBS[:idx_time_period-1]), dt)
+        yf = fftpack.rfft(data_DBS_condAV) / (int(len(data_DBS_condAV) / 2))
+        yf2 = np.copy(yf)
+        yf2[(freq > fs)] = 0
+        yf2[(freq < 0)] = 0
+        y2 = np.real(fftpack.irfft(yf2) * (int(len(data_DBS_condAV) / 2)))
 
-        plt.plot(timedata_DBS, amplitude_strength)
+        plt.plot(filtered_time, filtered_amplitude_strength)
+        #plt.plot(filtered_time, amplitude_strength)
         #plt.plot(timedata_DBS, voltdata_DBS_Q)
         #plt.plot(phase_DBS)
         #plt.xlim(5,5.0001)
-        plt.xlim(5,5.1)
+        #plt.xlim(5,5.1)
+        title = '%s(ch.:%d), #%d, t=%.4f-%.4fs' % (data_name_DBS, ch_I, self.ShotNo, t_st, t_ed)
+        plt.title(title)
         plt.show()
 
+        fig = plt.figure(figsize=(6,4), dpi=150)
         plt.plot(timedata_DBS[:idx_time_period-1]-timedata_DBS[0], data_DBS_condAV)
+        plt.plot(timedata_DBS[:idx_time_period-1]-timedata_DBS[0], y2)
+        #plt.xlim(0,0.01)
+        title = 'Cond. Av., %s(ch.:%d), #%d, t=%.3f-%.3fs, \nBnad-pass: %.1f-%.1fkHz' % (data_name_DBS, ch_I, self.ShotNo, t_st, t_ed, lowcut/1e3, highcut/1e3)
+        plt.xlabel('Time[sec]')
+        plt.title(title)
+        plt.xlim(0, 1/mod_freq)
+        filename = 'CondAv_%s_ch%d_SN%d_t%dto%dms_Bnadpass_%.1fto%.1fkHz.png' % (data_name_DBS, ch_I, self.ShotNo, t_st, t_ed, lowcut/1e3, highcut/1e3)
+        plt.savefig(filename)
         plt.show()
 
     def ana_plot_highK_condAV_MECH(self, t_st, t_ed, mod_freq):
@@ -6850,7 +6890,7 @@ if __name__ == "__main__":
     #ana_findpeaks_shotarray()
     #ana_delaytime_shotarray()
     #itba = ITB_Analysis(int(ShotNo))
-    itba = ITB_Analysis(190898, 169693)#167088), 163958
+    itba = ITB_Analysis(190887, 169693)#167088), 163958
     #itba.conditional_average_highK_mppk(t_st=4.3, t_ed=4.60)
     #ShotNos = np.arange(178939, 178970)
     #ShotNos = 169690 + np.array([2,3,8,9,17,18,20,22,24,25])
@@ -6889,6 +6929,7 @@ if __name__ == "__main__":
     #itba.ana_plot_highK_condAV_MECH(t_st=5.198, t_ed=6.998, mod_freq=5)
     #itba.ana_plot_highK_condAV_MECH(t_st=5.098, t_ed=6.998, mod_freq=10)
     itba.ana_plot_DBSADC_condAV_MECH(t_st=5.098, t_ed=6.998, mod_freq=10)
+    #itba.ana_plot_DBSADC_condAV_MECH(t_st=5.198, t_ed=6.998, mod_freq=5)
     #itba.ana_plot_HIBP_condAV_MECH(t_st=5.098, t_ed=6.998, mod_freq=10)
     #itba.ana_plot_HIBP_condAV_MECH(t_st=5.198, t_ed=6.798, mod_freq=2.5)
     #itba.ana_plot_HIBP_condAV_MECH(t_st=4.998, t_ed=6.998, mod_freq=1)
