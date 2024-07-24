@@ -1,6 +1,7 @@
 import sys
 import os
 import csv
+import pywt
 from nifs.anadata import *
 from nifs.voltdata import *
 from nifs.timedata import *
@@ -1368,7 +1369,7 @@ class ITB_Analysis:
         vnum = data_DBS.getValNo()
         data_DBS_2D = np.zeros((len(t_data_DBS), vnum))
         for i in range(vnum):
-             data_DBS_2D[:,i]= data_DBS.getValData(i)
+            data_DBS_2D[:,i]= data_DBS.getValData(i)
 
         dnum = data_DBS.getDimNo()
         for i in range(dnum):
@@ -1455,8 +1456,8 @@ class ITB_Analysis:
                         buf_radh += voltdata_array[find_closest(timedata[idx_time_st:idx_time_ed], timedata_peaks_ltd[i]-t_st_condAV):find_closest(timedata[idx_time_st:idx_time_ed], timedata_peaks_ltd[i]+t_ed_condAV), :]
                     buf_t_radh = timedata[find_closest(timedata[idx_time_st:idx_time_ed], timedata_peaks_ltd[i]-t_st_condAV):find_closest(timedata[idx_time_st:idx_time_ed], timedata_peaks_ltd[i]+t_ed_condAV)] - timedata_peaks_ltd[i]+ timedata[idx_time_st] -timedata[0]
                     buf_t_DBS = t_data_DBS[find_closest( t_data_DBS, timedata_peaks_ltd[i] - t_st_condAV):find_closest( t_data_DBS,
-                                                                                                                      timedata_peaks_ltd[
-                                                                                                                          i] + t_ed_condAV)] - \
+                                                                                                                        timedata_peaks_ltd[
+                                                                                                                            i] + t_ed_condAV)] - \
                                 timedata_peaks_ltd[i]
                     buf_DBS += data_DBS_2D[find_closest( t_data_DBS, timedata_peaks_ltd[i]-t_st_condAV):find_closest( t_data_DBS, timedata_peaks_ltd[i]+t_ed_condAV), :]
                 except Exception as e:
@@ -1493,6 +1494,204 @@ class ITB_Analysis:
 
 
         return buf_t_radh, cond_av_radh, buf_t_DBS, cond_av_DBS, rho, len(timedata_peaks_ltd), fs
+
+    def condAV_BSADC_trigLowPassRadh(self, t_st=None, t_ed=None, arr_peak_selection=None, arr_toff=None, prom_min=None, prom_max=None, Mode_ece_radhpxi_calThom=None, data_name_BS=None):
+        if Mode_ece_radhpxi_calThom:
+            data = AnaData.retrieve('ece_radhpxi_calThom', self.ShotNo, 1)
+            Te = data.getValData('Te')
+            r = data.getDimData('R')
+            timedata = data.getDimData('Time')  # TimeData.retrieve(data_name_pxi, self.ShotNo, 1, 1).get_val()
+        else:
+            data_name_pxi = 'RADHPXI'  # RADLPXI
+            data_name_info = 'radhinfo'  # radlinfo
+            data_radhinfo = AnaData.retrieve(data_name_info, self.ShotNo, 1)
+            r = data_radhinfo.getValData('R')
+            timedata = TimeData.retrieve(data_name_pxi, self.ShotNo, 1, 1).get_val()
+
+        data_name_info = 'radhinfo'  # radlinfo
+        data_radhinfo = AnaData.retrieve(data_name_info, self.ShotNo, 1)
+        t = data.getDimData('Time')
+
+        #ch1(4.0m)
+        #ch_I = 17
+        #ch_Q = 18
+        #ch2(4.4m)
+        #ch_I = 23
+        #ch_Q = 24
+        #ch3
+        ch_I = 19
+        ch_Q = 20
+        #ch4(140G,4.4m)
+        #ch_I = 21
+        #ch_Q = 22
+        #data_name_BS = 'MWRM-COMB'    #3-O port comb-R
+        data_name_BS = 'MWRM-COMB2'
+        voltdata_BS_I = VoltData.retrieve(data_name_BS,self.ShotNo, 1,ch_I).get_val()
+        voltdata_BS_Q = VoltData.retrieve(data_name_BS,self.ShotNo, 1,ch_Q).get_val()
+        timedata_BS = TimeData.retrieve(data_name_BS, self.ShotNo, 1, ch_I).get_val()
+
+        # サンプリング周波数の計算
+        fs = 1 / (timedata_BS[1] - timedata_BS[0])
+
+        # 5秒から7秒の間のデータを抽出
+        start_time = t_st  # 5秒
+        end_time = t_ed  # 7秒
+        start_index = np.searchsorted(timedata_BS, start_time)
+        end_index = np.searchsorted(timedata_BS, end_time)
+        filtered_time = timedata_BS[start_index:end_index]
+        filtered_signal = voltdata_BS_I[start_index:end_index]
+
+        # フーリエ変換
+        fft_result = fft(filtered_signal)
+
+        # 複素振幅の計算
+        complex_amplitude = ifft(fft_result)
+
+        # 複素振幅の絶対値を計算（複素振幅強度）
+        amplitude_strength = np.abs(complex_amplitude)
+
+        # バターワースバンドパスフィルタの設計
+        #lowcut = 90000#1000  # カットオフ周波数 1kHz
+        #highcut = 100000#10000  # カットオフ周波数 10kHz
+        #lowcut = 5000#1000  # カットオフ周波数 1kHz
+        #highcut = 30000#10000  # カットオフ周波数 10kHz
+        lowcut = 50000#1000  # カットオフ周波数 1kHz
+        highcut = 100000#10000  # カットオフ周波数 10kHz
+        #lowcut = 1000  # カットオフ周波数 1kHz
+        #highcut = 10000  # カットオフ周波数 10kHz
+        #lowcut = 500  # カットオフ周波数 1kHz
+        #lowcut = 1000  # カットオフ周波数 1kHz
+        #highcut = 2700  # カットオフ周波数 10kHz
+        #highcut = 10000  # カットオフ周波数 10kHz
+        order = 2#3#5
+        nyquist = 0.5 * fs
+        low = lowcut / nyquist
+        high = highcut / nyquist
+        b, a = butter(order, [low, high], btype='band')
+        #b, a = butter(order, low, btype='low', analog=False)
+
+        # 複素振幅強度にフィルタを適用
+        filtered_amplitude_strength = np.abs(filtfilt(b, a, amplitude_strength))
+
+        plt.plot(filtered_time, filtered_amplitude_strength)
+        plt.show()
+
+
+        #r = data_radhinfo.getValData('rho')
+        #r = data_radhinfo.getValData('R')
+        rho = data_radhinfo.getValData('rho')
+        ch = data_radhinfo.getValData('pxi')
+
+        i_ch = 16#14#13#9
+        #voltdata_array = np.zeros((len(timedata), 32))
+        idx_time_st = find_closest(timedata, t_st)
+        idx_time_ed = find_closest(timedata, t_ed)
+        voltdata_array = np.zeros((len(timedata[idx_time_st:idx_time_ed]), 32))
+        voltdata_array_calThom = np.zeros((len(timedata[idx_time_st:idx_time_ed]), 32))
+
+
+        fs = 5e3#2e3#5e3
+        dt = timedata[1] - timedata[0]
+        freq = fftpack.fftfreq(len(timedata[idx_time_st:idx_time_ed]), dt)
+        #fig = plt.figure(figsize=(8,6), dpi=150)
+        for i in range(32):
+            #voltdata = VoltData.retrieve(data_name_pxi, self.ShotNo, 1, i+1).get_val()
+            if Mode_ece_radhpxi_calThom:
+                voltdata = Te[:,i]
+            else:
+                voltdata = VoltData.retrieve(data_name_pxi, self.ShotNo, 1, int(ch[i])).get_val()
+            '''
+            low-pass filter for voltdata
+            '''
+            yf = fftpack.rfft(voltdata[idx_time_st:idx_time_ed]) / (int(len(voltdata[idx_time_st:idx_time_ed]) / 2))
+            yf2 = np.copy(yf)
+            yf2[(freq > fs)] = 0
+            yf2[(freq < 0)] = 0
+            y2 = np.real(fftpack.irfft(yf2) * (int(len(voltdata[idx_time_st:idx_time_ed]) / 2)))
+            voltdata_array[:, i] = y2
+            voltdata_array[:, i] = normalize_0_1(y2)
+            if Mode_ece_radhpxi_calThom:
+                voltdata_array_calThom[:, i] = y2
+
+
+        #_, _, _, timedata_peaks_ltd_,_,_,_ = self.findpeaks_radh(t_st, t_ed, i_ch)
+        if Mode_ece_radhpxi_calThom:
+            peaks, prominences, timedata_peaks_ltd_ = self.findpeaks_radh(t_st, t_ed, i_ch, timedata[idx_time_st:idx_time_ed], voltdata_array, isCondAV=True, isPlot=True, Mode_find_peaks='avalanche20240403_ece', prom_min=prom_min, prom_max=prom_max)
+        else:
+            peaks, prominences, timedata_peaks_ltd_ = self.findpeaks_radh(t_st, t_ed, i_ch, timedata[idx_time_st:idx_time_ed], voltdata_array, isCondAV=True, isPlot=False, Mode_find_peaks='avalanche20240403', prom_min=prom_min, prom_max=prom_max)
+
+        #timedata_peaks_ltd = timedata_peaks_ltd_
+        if arr_peak_selection == None:
+            timedata_peaks_ltd = timedata_peaks_ltd_
+        else:
+            timedata_peaks_ltd = timedata_peaks_ltd_[arr_peak_selection]
+        #timedata_peaks_ltd -= arr_toff
+        print(len(timedata_peaks_ltd_))
+        t_st_condAV = 15e-3
+        t_ed_condAV = 25e-3#4e-3#6e-3#10e-3#
+        for i in range(len(timedata_peaks_ltd)):
+            if i == 0:
+                if Mode_ece_radhpxi_calThom:
+                    buf_radh = voltdata_array_calThom[find_closest(timedata[idx_time_st:idx_time_ed],
+                                                                   timedata_peaks_ltd[i] - t_st_condAV):find_closest(
+                        timedata[idx_time_st:idx_time_ed], timedata_peaks_ltd[i] + t_ed_condAV), :]
+                else:
+                    buf_radh = voltdata_array[find_closest(timedata[idx_time_st:idx_time_ed],
+                                                           timedata_peaks_ltd[i] - t_st_condAV):find_closest(
+                        timedata[idx_time_st:idx_time_ed], timedata_peaks_ltd[i] + t_ed_condAV), :]
+                buf_radh_ = voltdata_array[find_closest(timedata[idx_time_st:idx_time_ed], timedata_peaks_ltd[i]-t_st_condAV):find_closest(timedata[idx_time_st:idx_time_ed], timedata_peaks_ltd[i]+t_ed_condAV), :]
+                buf_t_radh = timedata[find_closest(timedata[idx_time_st:idx_time_ed], timedata_peaks_ltd[i]-t_st_condAV):find_closest(timedata[idx_time_st:idx_time_ed], timedata_peaks_ltd[i]+t_ed_condAV)] - timedata_peaks_ltd[i] + timedata[idx_time_st] - timedata[0]
+                buf_t_BS =filtered_time[find_closest(filtered_time, timedata_peaks_ltd[i]-t_st_condAV):find_closest(filtered_time, timedata_peaks_ltd[i]+t_ed_condAV)] - timedata_peaks_ltd[i]
+
+                buf_BS = filtered_amplitude_strength[find_closest(filtered_time, timedata_peaks_ltd[i]-t_st_condAV):find_closest(filtered_time, timedata_peaks_ltd[i]+t_ed_condAV)]
+
+            else:
+                try:
+                    buf_radh_ = voltdata_array[find_closest(timedata[idx_time_st:idx_time_ed], timedata_peaks_ltd[i]-t_st_condAV):find_closest(timedata[idx_time_st:idx_time_ed], timedata_peaks_ltd[i]+t_ed_condAV), :]
+                    if Mode_ece_radhpxi_calThom:
+                        buf_radh += voltdata_array_calThom[find_closest(timedata[idx_time_st:idx_time_ed], timedata_peaks_ltd[i]-t_st_condAV):find_closest(timedata[idx_time_st:idx_time_ed], timedata_peaks_ltd[i]+t_ed_condAV), :]
+                    else:
+                        buf_radh += voltdata_array[find_closest(timedata[idx_time_st:idx_time_ed], timedata_peaks_ltd[i]-t_st_condAV):find_closest(timedata[idx_time_st:idx_time_ed], timedata_peaks_ltd[i]+t_ed_condAV), :]
+                    buf_t_radh = timedata[find_closest(timedata[idx_time_st:idx_time_ed], timedata_peaks_ltd[i]-t_st_condAV):find_closest(timedata[idx_time_st:idx_time_ed], timedata_peaks_ltd[i]+t_ed_condAV)] - timedata_peaks_ltd[i]+ timedata[idx_time_st] -timedata[0]
+                    buf_t_BS =filtered_time[find_closest(filtered_time, timedata_peaks_ltd[i] - t_st_condAV):find_closest(filtered_time,
+                                                                                                                      timedata_peaks_ltd[
+                                                                                                                          i] + t_ed_condAV)] - \
+                                timedata_peaks_ltd[i]
+                    buf_BS +=filtered_amplitude_strength[find_closest(filtered_time, timedata_peaks_ltd[i]-t_st_condAV):find_closest(filtered_time, timedata_peaks_ltd[i]+t_ed_condAV)]
+                except Exception as e:
+                    print(e)
+
+        cond_av_radh = buf_radh/len(timedata_peaks_ltd)
+        cond_av_BS = buf_BS/len(timedata_peaks_ltd)
+        fig = plt.figure()
+        ax1 = fig.add_subplot(111)
+        ax2 = ax1.twinx()
+        ax1.set_axisbelow(True)
+        ax2.set_axisbelow(True)
+        plt.rcParams['axes.axisbelow'] = True
+        label_radh = "ECE(rho=" + str(rho[i_ch]) + ")"
+        label_pci = data_name_BS
+        c = ax1.plot(buf_t_radh, cond_av_radh[:, i_ch], 'r-', label=label_radh, zorder=2)
+        #a = ax2.plot(buf_t_BS, cond_av_BS, 'g-', label=label_pci, zorder=2)
+        a = ax2.plot(buf_t_BS, cond_av_BS, '-', zorder=2)
+        plt.title(data_name_BS + ', Prominence:%.1fto%.1f, #%d' % (prom_min, prom_max, self.ShotNo), loc='right')
+        ax1.grid(axis='x', b=True, which='major', color='#666666', linestyle='-')
+        ax1.grid(axis='x', b=True, which='minor', color='#999999', linestyle='-', alpha=0.2)
+        ax2.set_xlabel('Time [sec]')
+        ax2.set_ylabel('BS', rotation=270)
+        ax1.set_ylabel('Intensity of ECE [a.u.]', labelpad=15)
+        #ax1.set_ylim(-0.5, 0.1)
+        fig.legend(loc=1, bbox_to_anchor=(1, 1), bbox_transform=ax1.transAxes)
+        ax1.set_zorder(2)
+        ax2.set_zorder(1)
+        ax1.patch.set_alpha(0)
+        #plt.savefig("timetrace_condAV_radh_highK_mp_No%d_prom%.1fto%.1f.png" % (self.ShotNo, prom_min, prom_max))
+        plt.show()
+        plt.close()
+
+
+
+        return buf_t_radh, cond_av_radh, buf_t_BS, cond_av_BS, rho, len(timedata_peaks_ltd), fs
 
     def condAV_wp_trigLowPassRadh_multishots(self, t_st=None, t_ed=None, arr_peak_selection=None, arr_toff=None,
                                               prom_min=None, prom_max=None):
@@ -1869,6 +2068,82 @@ class ITB_Analysis:
 
 
         return buf_t_radh, cond_av_radh, buf_t_pci, cond_av_pci, rho, len(timedata_peaks_ltd), fs
+
+    def condAV_BSADC_trigLowPassRadh_multishots(self, t_st=None, t_ed=None, arr_peak_selection=None, arr_toff=None,
+                                              prom_min=None, prom_max=None):
+        j = 0
+        shot_st = 188780
+        shot_ed = 188796
+        #data_name_BS = 'MWRM-COMB'    #3-O port comb-R
+        data_name_BS = 'MWRM-COMB2'
+        for i in range(shot_st, shot_ed + 1):
+            try:
+                self.ShotNo = i
+                print(self.ShotNo)
+                if j == 0:
+                    t_radh, buf_cond_av_radh, t_BS, buf_cond_av_BS, rho_radh, num_av, fs = self.condAV_BSADC_trigLowPassRadh(
+                        t_st=t_st,
+                        t_ed=t_ed,
+                        prom_min=0.4,
+                        prom_max=1.0, Mode_ece_radhpxi_calThom=True, data_name_BS=data_name_BS)
+                    buf_cond_av_radh_ac = buf_cond_av_radh - np.mean(buf_cond_av_radh[-1000:, :], axis=0)
+                    buf_cond_av_radh *= num_av
+                    buf_cond_av_radh_ac *= num_av
+                    buf_cond_av_BS *= num_av
+                    buf_num_av = num_av
+                    print(buf_num_av)
+                else:
+                    t_radh, buf_cond_av_radh_, t_BS, buf_cond_av_BS_, rho_radh, num_av, fs = self.condAV_BSADC_trigLowPassRadh(
+                        t_st=t_st,
+                        t_ed=t_ed,
+                        prom_min=0.4,
+                        prom_max=1.0, Mode_ece_radhpxi_calThom=True, data_name_BS=data_name_BS)
+                    buf_cond_av_radh += (buf_cond_av_radh_ * num_av)
+                    buf_cond_av_radh_ -= np.mean(buf_cond_av_radh_[-1000:, :], axis=0)
+                    buf_cond_av_radh_ac += (buf_cond_av_radh_ * num_av)
+                    buf_cond_av_BS += (buf_cond_av_BS_ * num_av)
+                    buf_num_av += num_av
+                    print(num_av)
+                    print(buf_num_av)
+            except Exception as e:
+                exc_type, exc_obj, exc_tb = sys.exc_info()
+                fname = os.path.split(exc_tb.tb_frame.f_code.co_filename)[1]
+                print("%s, %s, %s" % (exc_type, fname, exc_tb.tb_lineno))
+                print(e)
+            j += 1
+            print(j)
+
+        cond_av_radh = buf_cond_av_radh / buf_num_av
+        cond_av_radh_ac = buf_cond_av_radh_ac / buf_num_av
+        cond_av_BS = buf_cond_av_BS / buf_num_av
+
+        i_ch = 16
+        # label_highK = 'highK(reff/a99=%.3f)' % (reff_a99_highK.mean(axis=-1))
+        fig = plt.figure()
+        ax1 = fig.add_subplot(111)
+        ax2 = ax1.twinx()
+        ax1.set_axisbelow(True)
+        ax2.set_axisbelow(True)
+        plt.rcParams['axes.axisbelow'] = True
+        #b = ax2.plot(t_BS, cond_av_BS, 'g-', label='BS', zorder=1)
+        b = ax2.plot(t_BS, cond_av_BS, '-', zorder=1)
+        label_radh = "ECE(rho=" + str(rho_radh[i_ch]) + ")"
+        c = ax1.plot(t_radh, cond_av_radh[:, i_ch], 'r-', label=label_radh, zorder=2)
+        plt.title(data_name_BS + ',Prominence:%.1fto%.1f, #%d-%d' % (prom_min, prom_max, shot_st, shot_ed), loc='right')
+        ax1.grid(axis='x', b=True, which='major', color='#666666', linestyle='-')
+        ax1.grid(axis='x', b=True, which='minor', color='#999999', linestyle='-', alpha=0.2)
+        ax2.set_xlabel('Time [sec]')
+        ax2.set_ylabel('BS', rotation=270)
+        ax1.set_ylabel('Intensity of ECE [a.u.]', labelpad=15)
+        # ax1.set_ylim(-0.5, 0.1)
+        fig.legend(loc=1, bbox_to_anchor=(1, 1), bbox_transform=ax1.transAxes)
+        ax1.set_zorder(2)
+        ax2.set_zorder(1)
+        ax1.patch.set_alpha(0)
+        # plt.savefig("timetrace_condAV_radh_highK_mp_No%dto%d_prom%.1fto%.1f_v3.png" % (shot_st, shot_ed, prom_min, prom_max))
+        plt.savefig("timetrace_condAV_ece_radh_" + data_name_BS + "_No%dto%d_prom%.1fto%.1f_v3.png" % (shot_st, shot_ed, prom_min, prom_max))
+        plt.show()
+        plt.close()
 
     def condAV_DBS_trigLowPassRadh_multishots(self, t_st=None, t_ed=None, arr_peak_selection=None, arr_toff=None,
                                               prom_min=None, prom_max=None):
@@ -4033,6 +4308,345 @@ class ITB_Analysis:
         #np.savetxt('radh_timedata' + filename, timedata[idx_time_st:idx_time_ed])
         #return timedata[:idx_time_period]-timedata[0], reff_a99_highK[idx_time_st:idx_time_ed].mean(axis=-1), y2
 
+    def ana_plot_MPbandpass_condAV_MECH(self, t_st, t_ed, mod_freq):
+        data_mp = AnaData.retrieve('mp_raw_p', self.ShotNo, 1)
+        data_mp_2d = data_mp.getValData(0)
+        timedata = data_mp.getDimData('TIME')
+        idx_time_st = find_closest(timedata, t_st)
+        idx_time_ed = find_closest(timedata, t_ed)#+1
+        idx_time_period = find_closest(timedata, t_st + 1/mod_freq) - idx_time_st + 1
+        i_wave = np.int(Decimal(str(mod_freq))*(Decimal(str(t_ed))-Decimal(str(t_st))))
+
+
+        # 次元 'R' のデータを取得 (要素数137 の一次元配列(numpy.Array)が返ってくる)
+        i_ch =0
+        idx_time_st = find_closest(timedata, t_st)
+        idx_time_ed = find_closest(timedata, t_ed)
+        data_mp = data_mp_2d[idx_time_st:idx_time_ed, i_ch]
+
+        # サンプリング周波数の計算
+        fs = 1 / (timedata[1] - timedata[0])
+        # フーリエ変換
+        fft_result = fft(data_mp)
+        freqs = fftfreq(len(data_mp), 1 / fs)
+
+        # 周波数スペクトルのプロット
+        plt.figure(figsize=(6, 6))
+        plt.plot(freqs[:len(freqs) // 2], np.abs(fft_result)[:len(freqs) // 2])
+        plt.xlabel('Frequency [Hz]')
+        plt.ylabel('Amplitude')
+        plt.xscale('log')
+        plt.yscale('log')
+        title = 'MP #%d, t=%.4f-%.4fs' % (self.ShotNo, t_st, t_ed)
+        plt.title(title)
+        filename = 'Freq_Spectrum_MP_SN%d.png' % (self.ShotNo)
+        plt.savefig(filename)
+        plt.show()
+
+        # スペクトログラムの計算
+        nperseg =  2**8# 窓長さ
+        noverlap =  2**3  # 窓のオーバーラップ
+        frequencies, times, Sxx = sig.spectrogram(data_mp, fs, nperseg=nperseg, noverlap=noverlap)
+
+        # スペクトログラムのプロット
+        plt.figure(figsize=(12, 6))
+        plt.pcolormesh(times + t_st, frequencies, 10 * np.log10(Sxx), cmap='jet')#, vmin=-100, vmax=-70)#shading='gouraud')
+        plt.colorbar(label='Intensity [dB]')
+        title = 'MP #%d, t=%.4f-%.4fs' % (self.ShotNo, t_st, t_ed)
+        plt.title(title)
+        plt.xlabel('Time [s]')
+        plt.ylabel('Frequency [Hz]')
+        #plt.ylim([0, 40000])  # 表示範囲を0から10kHzまでに設定
+        plt.ylim([0, 20000])  # 表示範囲を0から10kHzまでに設定
+        plt.xlim(5.2,5.8)
+        filename = 'Spectrogram_MP_SN%d.png' % (self.ShotNo)
+        plt.savefig(filename)
+        plt.show()
+
+        # バターワースバンドパスフィルタの設計
+        lowcut_1 = 100  # カットオフ周波数 1kHz
+        highcut_1 = 2700  # カットオフ周波数 10kHz
+        label_lowfreq = '%.1f-%.1f kHz' % (lowcut_1/1000, highcut_1/1000)
+        order = 3#5
+        nyquist = 0.5 * fs
+        low = lowcut_1 / nyquist
+        high = highcut_1 / nyquist
+        b, a = butter(order, [low, high], btype='band')
+
+        # 複素振幅強度にフィルタを適用
+        filtered_mp = filtfilt(b, a, data_mp)
+        data_mp_env = np.abs(signal.hilbert(data_mp))
+        filtered_mp_env = np.abs(signal.hilbert(filtered_mp))
+
+        data_mp_env_condAV = data_mp_env.reshape(i_wave, -1).T.mean(axis=-1)
+        filtered_mp_env_condAV_lowfreq = filtered_mp_env.reshape(i_wave, -1).T.mean(axis=-1)
+
+        # バターワースバンドパスフィルタの設計
+        #lowcut = 10000#1000  # カットオフ周波数 1kHz
+        #highcut = 45000#10000  # カットオフ周波数 10kHz
+        lowcut_2 = 20000#1000  # カットオフ周波数 1kHz
+        highcut_2 = 45000#10000  # カットオフ周波数 10kHz
+        label_highfreq = '%.1f-%.1f kHz' % (lowcut_2/1000, highcut_2/1000)
+        order = 3#5
+        # サンプリング周波数の計算
+        fs = 1 / (timedata[1] - timedata[0])
+        nyquist = 0.5 * fs
+        low = lowcut_2 / nyquist
+        high = highcut_2 / nyquist
+        b, a = butter(order, [low, high], btype='band')
+
+        # 複素振幅強度にフィルタを適用
+        filtered_mp = filtfilt(b, a, data_mp)
+        filtered_mp_env = np.abs(signal.hilbert(filtered_mp))
+
+        filtered_mp_env_condAV_highfreq = filtered_mp_env.reshape(i_wave, -1).T.mean(axis=-1)
+
+        fig = plt.figure(figsize=(6,4), dpi=150)
+        #plt.plot(timedata[idx_time_st:idx_time_ed], data_mp, label='raw')
+        #plt.plot(timedata[idx_time_st:idx_time_ed], filtered_mp, label='filtered')
+        #plt.plot(timedata[idx_time_st:idx_time_ed], filtered_mp_env, label='filtered(envelope)')
+        plt.plot(timedata[:idx_time_period-1]-timedata[0], data_mp_env_condAV, label='raw(envelope)')
+        plt.plot(timedata[:idx_time_period-1]-timedata[0], filtered_mp_env_condAV_lowfreq, label='filtered(Low freq.:' + label_lowfreq + ', envelope)')
+        plt.plot(timedata[:idx_time_period-1]-timedata[0], filtered_mp_env_condAV_highfreq, label='filtered(High freq.:' + label_highfreq + ', envelope)')
+        plt.legend()
+        title = '#%d, t=%.4f-%.4fs' % (self.ShotNo, t_st, t_ed)
+        plt.title(title)
+        plt.xlabel('Time [sec]')
+        plt.xlim(0, 1/mod_freq)
+        #plt.xlim(5.1, 5.5)
+        filename = 'CondAv_MP_SN%d_t%dto%dms_BP%dto%d_%dto%dkHz.png' % (self.ShotNo, t_st*1000, t_ed*1000, lowcut_1/1000, highcut_1/1000, lowcut_2/1000, highcut_2/1000)
+        plt.savefig(filename)
+        plt.show()
+
+    def ana_plot_BSADC_condAV_MECH(self, t_st, t_ed, mod_freq):
+        #ch1(4.0m)
+        #ch_I = 17
+        #ch_Q = 18
+        #ch2(4.4m)
+        #ch_I = 23
+        #ch_Q = 24
+        #ch3
+        ch_I = 19
+        ch_Q = 20
+        #ch4(140G,4.4m)
+        #ch_I = 21
+        #ch_Q = 22
+        #data_name_BS = 'MWRM-COMB'    #3-O port comb-R
+        data_name_BS = 'MWRM-COMB2'
+        voltdata_BS_I = VoltData.retrieve(data_name_BS,self.ShotNo, 1,ch_I).get_val()
+        voltdata_BS_Q = VoltData.retrieve(data_name_BS,self.ShotNo, 1,ch_Q).get_val()
+        timedata_BS = TimeData.retrieve(data_name_BS, self.ShotNo, 1, ch_I).get_val()
+
+        # サンプリング周波数の計算
+        fs = 1 / (timedata_BS[1] - timedata_BS[0])
+
+        # 5秒から7秒の間のデータを抽出
+        start_time = t_st  # 5秒
+        end_time = t_ed  # 7秒
+        start_index = np.searchsorted(timedata_BS, start_time)
+        end_index = np.searchsorted(timedata_BS, end_time)
+        filtered_time = timedata_BS[start_index:end_index]
+        filtered_signal = voltdata_BS_I[start_index:end_index]
+
+        # フーリエ変換
+        fft_result = fft(filtered_signal)
+        freqs = fftfreq(len(filtered_signal), 1 / fs)
+
+        # 周波数スペクトルのプロット
+        plt.figure(figsize=(6, 6))
+        plt.plot(freqs[:len(freqs) // 2], np.abs(fft_result)[:len(freqs) // 2])
+        plt.xlabel('Frequency [Hz]')
+        plt.ylabel('Amplitude')
+        plt.xscale('log')
+        plt.yscale('log')
+        title = '%s(ch.:%d), #%d, t=%.4f-%.4fs' % (data_name_BS, ch_I, self.ShotNo, t_st, t_ed)
+        title = '%s(ch.:%d), #%d, t=%.4f-%.4fs' % (data_name_BS, ch_I, self.ShotNo, t_st, t_ed)
+        plt.title(title)
+        filename = 'Freq_Spectrum_BS_%s_ch%d_SN%d.png' % (data_name_BS, ch_I, self.ShotNo)
+        plt.savefig(filename)
+        plt.show()
+
+        # スペクトログラムの計算
+        #nperseg =  12500# 窓長さ
+        #noverlap =  512  # 窓のオーバーラップ
+        #nperseg =  2**15# 窓長さ
+        #noverlap =  2**8  # 窓のオーバーラップ
+        #nperseg =  50000# 窓長さ
+        #noverlap =  47500  # 窓のオーバーラップ
+        nperseg =  50000# 窓長さ
+        noverlap =  48750  # 窓のオーバーラップ
+        frequencies, times, Sxx = sig.spectrogram(filtered_signal, fs, nperseg=nperseg, noverlap=noverlap)
+
+        # スペクトログラムのプロット
+        plt.figure(figsize=(12, 6))
+        plt.pcolormesh(times + start_time, frequencies, 10 * np.log10(Sxx), cmap='jet')#, vmin=-100, vmax=-70)#shading='gouraud')
+        plt.colorbar(label='Intensity [dB]')
+        title = '%s(ch.:%d), #%d, t=%.4f-%.4fs' % (data_name_BS, ch_I, self.ShotNo, t_st, t_ed)
+        plt.title(title)
+        plt.xlabel('Time [s]')
+        plt.ylabel('Frequency [Hz]')
+        #plt.ylim([0, 80000])  # 表示範囲を0から10kHzまでに設定
+        plt.xlim(5.1,5.5)
+        filename = 'Spectgram_BS_%s_ch%d_SN%d.png' % (data_name_BS, ch_I, self.ShotNo)
+        plt.savefig(filename)
+        plt.show()
+
+        '''
+        # スケールの範囲を設定（必要な周波数帯域に応じて調整）
+        scales = np.arange(1, 5000)  # スケール範囲を広げて低周波数成分もカバー
+
+        # チャンクサイズとオーバーラップを設定
+        chunk_size = 100000  # 例: 10万サンプルのチャンク
+        overlap = 50000  # 例: 5万サンプルのオーバーラップ
+
+        # 結果を保存するリストを初期化
+        coef_list = []
+        time_list = []
+
+        # チャンク数を計算
+        total_chunks = (len(filtered_signal) - overlap) // (chunk_size - overlap) + 1
+
+        # 処理開始時間
+        total_start_time = time.time()
+
+        # チャンクごとに処理
+        for i, start in enumerate(range(0, len(filtered_signal), chunk_size - overlap)):
+            end = min(start + chunk_size, len(filtered_signal))
+            chunk_signal = filtered_signal[start:end]
+            chunk_time = filtered_time[start:end]
+
+            # チャンク処理開始時間
+            start_process_time = time.time()
+
+            # 連続ウェーブレット変換 (CWT)
+            coef, freqs = pywt.cwt(chunk_signal, scales, 'morl', sampling_period=1 / fs)
+
+            # 結果をリストに追加
+            coef_list.append(coef)
+            time_list.append(chunk_time)
+
+            # チャンク処理終了時間
+            end_process_time = time.time()
+
+            # 進捗状況と処理時間をコンソールに表示
+            process_time = end_process_time - start_process_time
+            elapsed_time = end_process_time - total_start_time
+            remaining_chunks = total_chunks - (i + 1)
+            estimated_total_time = elapsed_time / (i + 1) * total_chunks
+            estimated_remaining_time = estimated_total_time - elapsed_time
+            progress_percent = ((i + 1) / total_chunks) * 100
+
+            print(f"Chunk {i + 1}/{total_chunks} processed in {process_time:.2f} seconds")
+            print(
+                f"Elapsed time: {elapsed_time:.2f} seconds, Estimated remaining time: {estimated_remaining_time:.2f} seconds, Progress: {progress_percent:.2f}%")
+
+        # 結果を結合
+        coef_combined = np.hstack(coef_list)
+        time_combined = np.hstack(time_list)
+
+        # スペクトログラムのプロット
+        plt.figure(figsize=(12, 6))
+        plt.contourf(time_combined, freqs, np.abs(coef_combined), extend='both', cmap='jet')
+        plt.colorbar(label='Magnitude')
+        plt.title('Continuous Wavelet Transform (5.1s-5.6s)')
+        plt.xlabel('Time [s]')
+        plt.ylabel('Frequency [Hz]')
+        plt.ylim([0, 10000])  # 表示範囲を0から10kHzまでに設定
+        plt.show()
+        '''
+
+        # フーリエ変換
+        fft_result = fft(filtered_signal)
+
+        # 複素振幅の計算
+        complex_amplitude = ifft(fft_result)
+
+        # 複素振幅の絶対値を計算（複素振幅強度）
+        amplitude_strength = np.abs(complex_amplitude)
+
+        # バターワースバンドパスフィルタの設計
+        #lowcut = 90000#1000  # カットオフ周波数 1kHz
+        #highcut = 100000#10000  # カットオフ周波数 10kHz
+        #lowcut = 5000#1000  # カットオフ周波数 1kHz
+        #highcut = 30000#10000  # カットオフ周波数 10kHz
+        lowcut = 1000#50000#1000  # カットオフ周波数 1kHz
+        highcut = 100000#10000  # カットオフ周波数 10kHz
+        #lowcut = 1000  # カットオフ周波数 1kHz
+        #highcut = 10000  # カットオフ周波数 10kHz
+        #lowcut = 500  # カットオフ周波数 1kHz
+        #lowcut = 1000  # カットオフ周波数 1kHz
+        #highcut = 2700  # カットオフ周波数 10kHz
+        #highcut = 10000  # カットオフ周波数 10kHz
+        order = 2#3#5
+        nyquist = 0.5 * fs
+        low = lowcut / nyquist
+        high = highcut / nyquist
+        b, a = butter(order, [low, high], btype='band')
+        #b, a = butter(order, low, btype='low', analog=False)
+
+        # 複素振幅強度にフィルタを適用
+        filtered_amplitude_strength = np.abs(filtfilt(b, a, amplitude_strength))
+
+
+
+        idx_time_st = find_closest(timedata_BS, t_st)
+        idx_time_ed = find_closest(timedata_BS, t_ed)+1
+        idx_time_period = find_closest(timedata_BS, t_st + 1/mod_freq) - idx_time_st + 1
+        i_wave = np.int(Decimal(str(mod_freq))*(Decimal(str(t_ed))-Decimal(str(t_st))))
+        idx_time_period_Sxx = int(len(times-21)/i_wave)
+
+        Sxx_condAV = Sxx[:,:-1].reshape(len(frequencies), i_wave, idx_time_period_Sxx).mean(axis=1)
+        #Sxx_condAV = Sxx[:,:-21].reshape(len(frequencies), i_wave, idx_time_period_Sxx).mean(axis=1)
+        # スペクトログラムのプロット
+        plt.figure(figsize=(10, 12))
+        plt.pcolormesh(times[:idx_time_period_Sxx]-0.01, frequencies, 10 * np.log10(Sxx_condAV), cmap='jet', vmin=-120, vmax=-70)#shading='gouraud')
+        plt.colorbar(label='Intensity [dB]')
+        title = '%s(ch.:%d), #%d, t=%.4f-%.4fs' % (data_name_BS, ch_I, self.ShotNo, t_st, t_ed)
+        plt.title(title)
+        plt.xlabel('Time [s]')
+        plt.ylabel('Frequency [Hz]')
+        #plt.ylim([100, 500000])  # 表示範囲を0から10kHzまでに設定
+        plt.ylim([30, 500000])  # 表示範囲を0から10kHzまでに設定
+        plt.yscale('log')
+        #plt.xlim(5.1,5.5)
+        filename = 'Spectgram_condAV_BS_%s_ch%d_SN%d.png' % (data_name_BS, ch_I, self.ShotNo)
+        plt.savefig(filename)
+        plt.show()
+
+        #data_BS_condAV = filtered_amplitude_strength[idx_time_st:idx_time_ed].reshape(i_wave, -1).T.mean(axis=-1)
+        data_BS_condAV = filtered_amplitude_strength.reshape(i_wave, -1).T.mean(axis=-1)
+        #data_BS_condAV = amplitude_strength.reshape(i_wave, -1).T.mean(axis=-1)
+        fs = 1e3#5e3#5e3#1e3
+        dt = timedata_BS[1]-timedata_BS[0]
+        freq = fftpack.fftfreq(len(timedata_BS[:idx_time_period-1]), dt)
+        yf = fftpack.rfft(data_BS_condAV) / (int(len(data_BS_condAV) / 2))
+        yf2 = np.copy(yf)
+        yf2[(freq > fs)] = 0
+        yf2[(freq < 0)] = 0
+        y2 = np.real(fftpack.irfft(yf2) * (int(len(data_BS_condAV) / 2)))
+
+        plt.plot(filtered_time, filtered_amplitude_strength)
+        #plt.plot(filtered_time, amplitude_strength)
+        #plt.plot(timedata_BS, voltdata_BS_Q)
+        #plt.plot(phase_BS)
+        #plt.xlim(5,5.0001)
+        #plt.xlim(5,5.1)
+        title = '%s(ch.:%d), #%d, t=%.4f-%.4fs' % (data_name_BS, ch_I, self.ShotNo, t_st, t_ed)
+        plt.title(title)
+        plt.show()
+
+        fig = plt.figure(figsize=(6,4), dpi=150)
+        plt.plot(timedata_BS[:idx_time_period-1]-timedata_BS[0], data_BS_condAV)
+        plt.plot(timedata_BS[:idx_time_period-1]-timedata_BS[0], y2)
+        #plt.xlim(0,0.01)
+        title = 'Cond. Av., %s(ch.:%d), #%d, t=%.3f-%.3fs, \nBnad-pass: %.1f-%.1fkHz' % (data_name_BS, ch_I, self.ShotNo, t_st, t_ed, lowcut/1e3, highcut/1e3)
+        plt.xlabel('Time[sec]')
+        plt.title(title)
+        plt.xlim(0, 1/mod_freq)
+        filename = 'CondAv_BS_%s_ch%d_SN%d_t%dto%dms_Bnadpass_%.1fto%.1fkHz.png' % (data_name_BS, ch_I, self.ShotNo, t_st, t_ed, lowcut/1e3, highcut/1e3)
+        plt.savefig(filename)
+        plt.show()
+
     def ana_plot_DBSADC_condAV_MECH(self, t_st, t_ed, mod_freq):
         ch_I = 9
         ch_Q = 10
@@ -4073,19 +4687,21 @@ class ITB_Analysis:
         plt.show()
 
         # スペクトログラムの計算
-        nperseg =  12500# 窓長さ
-        noverlap =  512  # 窓のオーバーラップ
+        #nperseg =  12500# 窓長さ
+        #noverlap =  512  # 窓のオーバーラップ
+        nperseg =  2**14# 窓長さ
+        noverlap =  2**7  # 窓のオーバーラップ
         frequencies, times, Sxx = sig.spectrogram(filtered_signal, fs, nperseg=nperseg, noverlap=noverlap)
 
         # スペクトログラムのプロット
         plt.figure(figsize=(12, 6))
-        plt.pcolormesh(times + start_time, frequencies, 10 * np.log10(Sxx), cmap='jet', vmin=-100, vmax=-70)#shading='gouraud')
+        plt.pcolormesh(times + start_time, frequencies, 10 * np.log10(Sxx), cmap='jet')#, vmin=-100, vmax=-70)#shading='gouraud')
         plt.colorbar(label='Intensity [dB]')
         title = '%s(ch.:%d), #%d, t=%.4f-%.4fs' % (data_name_DBS, ch_I, self.ShotNo, t_st, t_ed)
         plt.title(title)
         plt.xlabel('Time [s]')
         plt.ylabel('Frequency [Hz]')
-        plt.ylim([0, 10000])  # 表示範囲を0から10kHzまでに設定
+        plt.ylim([0, 40000])  # 表示範囲を0から10kHzまでに設定
         plt.xlim(5.1,5.5)
         filename = 'Spectgram_%s_ch%d_SN%d.png' % (data_name_DBS, ch_I, self.ShotNo)
         plt.savefig(filename)
@@ -4123,6 +4739,8 @@ class ITB_Analysis:
         idx_time_ed = find_closest(timedata_DBS, t_ed)+1
         idx_time_period = find_closest(timedata_DBS, t_st + 1/mod_freq) - idx_time_st + 1
         i_wave = np.int(Decimal(str(mod_freq))*(Decimal(str(t_ed))-Decimal(str(t_st))))
+
+        Sxx_DBS_condAV = Sxx.reshape(i_wave).T.mean(axis=-1)
 
         #data_DBS_condAV = filtered_amplitude_strength[idx_time_st:idx_time_ed].reshape(i_wave, -1).T.mean(axis=-1)
         data_DBS_condAV = filtered_amplitude_strength.reshape(i_wave, -1).T.mean(axis=-1)
@@ -4166,7 +4784,8 @@ class ITB_Analysis:
         vnum = data.getValNo()
         timedata = data.getDimData('Time')
 
-        data_highK = data.getValData('Amplitude (20-200kHz)')
+        #data_highK = data.getValData('Amplitude (20-200kHz)')
+        data_highK = data.getValData('Amplitude (3-30kHz)')
         reff_a99_highK = data.getValData('reff/a99')
 
         data_name_highK_probe = 'MWRM-PXI'
@@ -4847,7 +5466,7 @@ class ITB_Analysis:
         #plt.plot(timedata_highK_, data_highK)
         #plt.plot(timedata_gradTe_, data_highK_extended+0.001)
         print(rho_gradTe)
-        i_rho =14#13#19#17#15#9#12#16#7#20
+        i_rho =9#13#19#17#15#9#12#16#7#20
         # 1. Aの0.003-0.005秒の間の平均値をA全体から差し引く
         # 0.003sから0.005sのデータを除外
         exclude_start_time = 0.0031
@@ -4879,7 +5498,7 @@ class ITB_Analysis:
         plt.legend()
         plt.show()
 
-        label_highK = 'r/a=%.3f)' % rho_highK
+        label_highK = 'r/a=%.3f)(3-30kHz)' % rho_highK
         label_gradTe = 'r/a=%.3f)' % ((rho_gradTe[i_rho]+rho_gradTe[i_rho+1])/2)
         '''
         title = '#%d, %.2fs-%.2fs' % (self.ShotNo, t_st, t_ed)
@@ -4928,7 +5547,7 @@ class ITB_Analysis:
         plt.grid(True)
         plt.legend()
         plt.xlabel("Time [s]", fontsize=18)
-        filename = 'turb_gradTe_coupling_condAV_%d.png' % self.ShotNo
+        filename = 'turb_gradTe_coupling_condAV_%d_lowfreq.png' % self.ShotNo
         plt.savefig(filename)
         plt.xlim(0, np.max(timedata_gradTe_))
         plt.show()
@@ -6890,7 +7509,7 @@ if __name__ == "__main__":
     #ana_findpeaks_shotarray()
     #ana_delaytime_shotarray()
     #itba = ITB_Analysis(int(ShotNo))
-    itba = ITB_Analysis(190887, 169693)#167088), 163958
+    itba = ITB_Analysis(190891, 169694)#167088), 163958
     #itba.conditional_average_highK_mppk(t_st=4.3, t_ed=4.60)
     #ShotNos = np.arange(178939, 178970)
     #ShotNos = 169690 + np.array([2,3,8,9,17,18,20,22,24,25])
@@ -6907,6 +7526,7 @@ if __name__ == "__main__":
     #itba.ana_plot_radh(t_st=4.40, t_ed=4.6)
     #itba.condAV_radh_highK_mp_trigLowPassRadh(t_st=5.07, t_ed=6.97, prom_min=0.4, prom_max=1.0)
     #itba.condAV_DBS_trigLowPassRadh(t_st=4.0, t_ed=6, prom_min=0.4, prom_max=1.0, Mode_ece_radhpxi_calThom=True)
+    #itba.condAV_BSADC_trigLowPassRadh(t_st=4.0, t_ed=6, prom_min=0.4, prom_max=1.0, Mode_ece_radhpxi_calThom=True)
     #itba.condAV_wp_trigLowPassRadh(t_st=4.0, t_ed=6, prom_min=0.4, prom_max=1.0, Mode_ece_radhpxi_calThom=True)
     #itba.condAV_qe_trigLowPassRadh(t_st=4.0, t_ed=6, prom_min=0.4, prom_max=1.0, Mode_ece_radhpxi_calThom=True)
     #itba.condAV_nel_trigLowPassRadh(t_st=4.0, t_ed=6, prom_min=0.4, prom_max=1.0, Mode_ece_radhpxi_calThom=True)
@@ -6916,6 +7536,7 @@ if __name__ == "__main__":
     #itba.condAV_qe_trigLowPassRadh_multishots(t_st=4.0, t_ed=6, prom_min=0.4, prom_max=10.0)
     #itba.condAV_nel_trigLowPassRadh_multishots(t_st=4.0, t_ed=6, prom_min=0.4, prom_max=10.0)
     #itba.condAV_DBS_trigLowPassRadh_multishots(t_st=4.0, t_ed=6, prom_min=0.4, prom_max=10.0)
+    #itba.condAV_BSADC_trigLowPassRadh_multishots(t_st=4.0, t_ed=6, prom_min=0.4, prom_max=10.0)
     #itba.condAV_wp_trigLowPassRadh_multishots(t_st=4.0, t_ed=6, prom_min=0.4, prom_max=10.0)
     #itba.calc_qe()
     #itba.ana_plot_DBS_fft()
@@ -6928,12 +7549,19 @@ if __name__ == "__main__":
     #itba.ana_plot_highK_condAV_MECH(t_st=5.00, t_ed=7.0, mod_freq=5)
     #itba.ana_plot_highK_condAV_MECH(t_st=5.198, t_ed=6.998, mod_freq=5)
     #itba.ana_plot_highK_condAV_MECH(t_st=5.098, t_ed=6.998, mod_freq=10)
-    itba.ana_plot_DBSADC_condAV_MECH(t_st=5.098, t_ed=6.998, mod_freq=10)
+    #itba.ana_plot_DBSADC_condAV_MECH(t_st=5.098, t_ed=6.998, mod_freq=10)
     #itba.ana_plot_DBSADC_condAV_MECH(t_st=5.198, t_ed=6.998, mod_freq=5)
     #itba.ana_plot_HIBP_condAV_MECH(t_st=5.098, t_ed=6.998, mod_freq=10)
     #itba.ana_plot_HIBP_condAV_MECH(t_st=5.198, t_ed=6.798, mod_freq=2.5)
     #itba.ana_plot_HIBP_condAV_MECH(t_st=4.998, t_ed=6.998, mod_freq=1)
     #itba.ana_plot_HIBP_condAV_MECH(t_st=5.198, t_ed=6.998, mod_freq=5)
+    itba.ana_plot_BSADC_condAV_MECH(t_st=4.998, t_ed=6.998, mod_freq=10)
+    #itba.ana_plot_BSADC_condAV_MECH(t_st=3.298, t_ed=4.298, mod_freq=40)
+    #itba.ana_plot_BSADC_condAV_MECH(t_st=3.298, t_ed=4.298, mod_freq=40)
+    #itba.ana_plot_BSADC_condAV_MECH(t_st=5.198, t_ed=6.998, mod_freq=5)
+    #itba.ana_plot_BSADC_condAV_MECH(t_st=4.998, t_ed=6.998, mod_freq=5)
+    #itba.ana_plot_MPbandpass_condAV_MECH(t_st=5.098, t_ed=6.998, mod_freq=10)
+    #itba.ana_plot_MPbandpass_condAV_MECH(t_st=5.198, t_ed=6.998, mod_freq=5)
     #itba.ana_plot_DBS_condAV_MECH(t_st=5.098, t_ed=6.998, mod_freq=10)
     #itba.ana_plot_DBS_condAV_MECH(t_st=5.998, t_ed=6.998, mod_freq=1)
     #itba.ana_plot_DBS_condAV_MECH(t_st=5.198, t_ed=6.798, mod_freq=2.5)
@@ -6945,7 +7573,7 @@ if __name__ == "__main__":
     #itba.ana_plot_DBS_condAV_MECH(t_st=5.098, t_ed=6.998, mod_freq=10)
     #itba.ana_plot_CTRLDISP1_condAV_MECH(t_st=5.00, t_ed=7.0, mod_freq=5)
     #itba.ana_plot_highK_condAV_MECH(t_st=5.998, t_ed=6.998, mod_freq=1)
-    #itba.normalize_highK_w_gradTe(t_st=5.998, t_ed=6.998, mod_freq=10, isSaveData=False)
+    #itba.normalize_highK_w_gradTe(t_st=5.098, t_ed=6.998, mod_freq=10, isSaveData=False)
     #itba.normalize_highK_w_gradTe(t_st=3.798, t_ed=5.298, mod_freq=40, isSaveData=False)
     #itba.normalize_highK_w_gradTe(t_st=5.998, t_ed=6.998, mod_freq=1, isSaveData=False)
     #itba.normalize_highK_w_gradTe(t_st=5.198, t_ed=6.7980001, mod_freq=2.5, isSaveData=False)
