@@ -8,7 +8,7 @@ from nifs.timedata import *
 from matplotlib.gridspec import GridSpec
 from ftplib import FTP
 from scipy import fftpack
-from scipy.interpolate import interp1d
+from scipy.interpolate import interp1d, griddata
 from scipy.signal import find_peaks, peak_prominences, butter, filtfilt
 from scipy.fftpack import fft, ifft, fftfreq
 from scipy.optimize import curve_fit
@@ -23,6 +23,7 @@ import statistics
 #import pandas as pd
 from matplotlib.colors import LogNorm
 from decimal import Decimal
+from tqdm import tqdm  # 進捗バーを表示するためのライブラリをインポート
 #from matplotlib.animation import ArtistAnimation
 from PIL import Image, ImageDraw
 
@@ -4275,6 +4276,168 @@ class ITB_Analysis:
         plt.savefig(filename)
         plt.show()
 
+    def ana_plot_DBS_Vp_condAV_MECH(self, t_st, t_ed, mod_freq):
+        data_name_DBS = 'mwrm_9o_R_Vp'
+        #data_name_DBS = 'mwrm_comb_R_power'
+        #data_name_DBS = 'mwrm_9o_R_Iamp'
+        data_DBS = AnaData.retrieve(data_name_DBS, self.ShotNo, 1)
+        timedata = data_DBS.getDimData("Time")
+        vnum = data_DBS.getValNo()
+        data_DBS_2D = np.zeros((len(timedata), vnum))
+        for i in range(vnum):
+            data_DBS_2D[:,i]= data_DBS.getValData(i)
+
+        dnum = data_DBS.getDimNo()
+        for i in range(dnum):
+            print(i, data_DBS.getDimName(i), data_DBS.getDimUnit(i))
+        vnum = data_DBS.getValNo()
+        for i in range(vnum):
+            print(i, data_DBS.getValName(i), data_DBS.getValUnit(i))
+
+
+        idx_time_st = find_closest(timedata, t_st)
+        idx_time_ed = find_closest(timedata, t_ed)#+1
+        idx_time_period = find_closest(timedata, t_st + 1/mod_freq) - idx_time_st + 1
+        i_wave = np.int(Decimal(str(mod_freq))*(Decimal(str(t_ed))-Decimal(str(t_st))))
+        data_DBS_condAV = np.zeros((idx_time_period, vnum))
+
+        fig = plt.figure(figsize=(10,15), dpi=150)
+        for i in range(vnum):
+            data_DBS_condAV[:,i] = data_DBS_2D[idx_time_st:idx_time_ed,i].reshape(i_wave, -1).T.mean(axis=-1)
+            #plt.plot(timedata[:idx_time_period]-timedata[0], data_DBS_condAV[:,i] - 5000*i, label=data_DBS.getValName(i))
+            if i % 1 == 0:
+                plt.plot(timedata[:idx_time_period] - timedata[0], data_DBS_condAV[:, i], label=data_DBS.getValName(i))
+        #plt.xlim(4.4, 4.6)
+        plt.xlabel('Time [sec]')
+        title = '%s, #%d, %.2fs-%.2fs' % (data_name_DBS, self.ShotNo, t_st, t_ed)
+        plt.title(title, fontsize=18, loc='right')
+        plt.xlim(0, timedata[idx_time_period]-timedata[0])
+        plt.ylim(-2,2)
+        #plt.xlim(0,0.1)
+        plt.legend(loc='lower right')
+        filename = data_name_DBS + "_condAV_t%dto%dms_No%d_lowfreq_v2.png" %(int(t_st*1000), int(t_ed*1000), self.ShotNo)
+        plt.savefig(filename)
+        plt.show()
+
+
+        '''
+        data_name_DBS = 'mwrm_comb_R_power'
+        data_DBS = AnaData.retrieve(data_name_DBS, self.ShotNo, 1)
+        timedata = data_DBS.getDimData("Time")
+        vnum = data_DBS.getValNo()
+        data_DBS_2D = np.zeros((len(timedata), vnum))
+        for i in range(vnum):
+            data_DBS_2D[:,i]= data_DBS.getValData(i)
+
+        dnum = data_DBS.getDimNo()
+        for i in range(dnum):
+            print(i, data_DBS.getDimName(i), data_DBS.getDimUnit(i))
+        vnum = data_DBS.getValNo()
+        for i in range(vnum):
+            print(i, data_DBS.getValName(i), data_DBS.getValUnit(i))
+        idx_time_st = find_closest(timedata, t_st)
+        idx_time_ed = find_closest(timedata, t_ed)#+1
+        idx_time_period = find_closest(timedata, t_st + 1/mod_freq) - idx_time_st# + 1
+        i_wave = np.int(Decimal(str(mod_freq))*(Decimal(str(t_ed))-Decimal(str(t_st))))
+        data_DBS_condAV = np.zeros((idx_time_period, vnum))
+
+        fig = plt.figure(figsize=(10,15), dpi=150)
+        for i in range(vnum):
+            data_DBS_condAV[:,i] = data_DBS_2D[idx_time_st:idx_time_ed,i].reshape(i_wave, -1).T.mean(axis=-1)
+            plt.plot(timedata[:idx_time_period]-timedata[0], data_DBS_condAV[:,i] - 50*i, label=data_DBS.getValName(i))
+        #plt.xlim(4.4, 4.6)
+        plt.xlabel('Time [sec]')
+        title = '%s, #%d, %.2fs-%.2fs' % (data_name_DBS, self.ShotNo, t_st, t_ed)
+        plt.title(title, fontsize=18, loc='right')
+        plt.xlim(0, timedata[idx_time_period]-timedata[0])
+        #plt.xlim(0,0.1)
+        plt.legend(loc='lower right')
+        filename = data_name_DBS + "_condAV_t%dto%dms_No%d.png" %(int(t_st*1000), int(t_ed*1000), self.ShotNo)
+        plt.savefig(filename)
+        plt.show()
+
+        data_name_DBS = 'mwrm_9o_R_Iamp'
+        data_DBS = AnaData.retrieve(data_name_DBS, self.ShotNo, 1)
+        timedata = data_DBS.getDimData("Time")
+        vnum = data_DBS.getValNo()
+        data_DBS_2D = np.zeros((len(timedata), vnum))
+        for i in range(vnum):
+            data_DBS_2D[:,i]= data_DBS.getValData(i)
+
+        dnum = data_DBS.getDimNo()
+        for i in range(dnum):
+            print(i, data_DBS.getDimName(i), data_DBS.getDimUnit(i))
+        vnum = data_DBS.getValNo()
+        for i in range(vnum):
+            print(i, data_DBS.getValName(i), data_DBS.getValUnit(i))
+        idx_time_st = find_closest(timedata, t_st)
+        idx_time_ed = find_closest(timedata, t_ed)#+1
+        idx_time_period = find_closest(timedata, t_st + 1/mod_freq) - idx_time_st + 1
+        i_wave = np.int(Decimal(str(mod_freq))*(Decimal(str(t_ed))-Decimal(str(t_st))))
+        data_DBS_condAV = np.zeros((idx_time_period, vnum))
+
+        fig = plt.figure(figsize=(6,4), dpi=150)
+        for i in range(vnum):
+            data_DBS_condAV[:,i] = data_DBS_2D[idx_time_st:idx_time_ed,i].reshape(i_wave, -1).T.mean(axis=-1)
+            plt.plot(timedata[:idx_time_period]-timedata[0], data_DBS_condAV[:,i], label=data_DBS.getValName(i))
+        #plt.xlim(4.4, 4.6)
+        plt.xlabel('Time [sec]')
+        title = '%s, #%d, %.2fs-%.2fs' % (data_name_DBS, self.ShotNo, t_st, t_ed)
+        plt.title(title, fontsize=18, loc='right')
+        plt.xlim(0, timedata[idx_time_period]-timedata[0])
+        #plt.xlim(0,0.1)
+        plt.legend(loc='lower right')
+        filename = data_name_DBS + "_condAV_t%dto%dms_No%d_lowfreq.png" %(int(t_st*1000), int(t_ed*1000), self.ShotNo)
+        plt.savefig(filename)
+        plt.show()
+        '''
+
+        data_name_DBS = 'mwrm_comb_R_Vp'
+        data_DBS = AnaData.retrieve(data_name_DBS, self.ShotNo, 1)
+        timedata = data_DBS.getDimData("Time")
+        vnum = data_DBS.getValNo()
+        data_DBS_2D = np.zeros((len(timedata), vnum))
+        for i in range(vnum):
+            data_DBS_2D[:,i]= data_DBS.getValData(i)
+
+        dnum = data_DBS.getDimNo()
+        for i in range(dnum):
+            print(i, data_DBS.getDimName(i), data_DBS.getDimUnit(i))
+        vnum = data_DBS.getValNo()
+        for i in range(vnum):
+            print(i, data_DBS.getValName(i), data_DBS.getValUnit(i))
+        idx_time_st = find_closest(timedata, t_st)
+        idx_time_ed = find_closest(timedata, t_ed)#+1
+        idx_time_period = find_closest(timedata, t_st + 1/mod_freq) - idx_time_st + 1
+        i_wave = np.int(Decimal(str(mod_freq))*(Decimal(str(t_ed))-Decimal(str(t_st))))
+        data_DBS_condAV = np.zeros((idx_time_period, vnum))
+
+        for j in range(7):
+            fig = plt.figure(figsize=(10,15), dpi=150)
+            for i in range(7):
+                i+=7*j
+            #for i in range(vnum):
+                data_DBS_condAV[:,i] = data_DBS_2D[idx_time_st:idx_time_ed,i].reshape(i_wave, -1).T.mean(axis=-1)
+                #plt.plot(timedata[:idx_time_period]-timedata[0], data_DBS_condAV[:,i], label=data_DBS.getValName(i))
+                if i%1==0:
+                    plt.plot(timedata[:idx_time_period] - timedata[0], data_DBS_condAV[:, i], label=data_DBS.getValName(i))
+            #plt.xlim(4.4, 4.6)
+            plt.xlabel('Time [sec]')
+            title = '%s, #%d, %.2fs-%.2fs' % (data_name_DBS, self.ShotNo, t_st, t_ed)
+            plt.title(title, fontsize=18, loc='right')
+            plt.xlim(0, timedata[idx_time_period]-timedata[0])
+            plt.ylim(-2,2)
+            #plt.xlim(0,0.1)
+            plt.legend(loc='upper right')
+            filename = data_name_DBS + "_condAV_t%dto%dms_No%d_lowfreq_ChFreq%d_v2.png" %(int(t_st*1000), int(t_ed*1000), self.ShotNo, j)
+            plt.savefig(filename)
+            plt.show()
+
+
+        #filename = '_t%.2fto%.2f_%d.txt' % (t_st, t_ed, self.ShotNo)
+        #np.savetxt('radh_array' + filename, voltdata_array)
+        #np.savetxt('radh_timedata' + filename, timedata[idx_time_st:idx_time_ed])
+        #return timedata[:idx_time_period]-timedata[0], reff_a99_highK[idx_time_st:idx_time_ed].mean(axis=-1), y2
     def ana_plot_DBS_condAV_MECH(self, t_st, t_ed, mod_freq):
         data_name_DBS = 'mwrm_9o_comb_Iamp'
         #data_name_DBS = 'mwrm_comb_R_power'
@@ -4606,7 +4769,7 @@ class ITB_Analysis:
         plt.savefig(filename)
         plt.show()
 
-    def ana_plot_BSADC_condAV_MECH(self, t_st, t_ed, mod_freq, isSaveData=False):
+    def ana_plot_BSADC_condAV_MECH(self, t_st, t_ed, mod_freq, isSaveData=False, isFitting=False):
         #ch1(4.0m)
         #ch_I = 17
         #ch_Q = 18
@@ -4766,8 +4929,8 @@ class ITB_Analysis:
         #highcut = 30000#10000  # カットオフ周波数 10kHz
         lowcut = 50000#50000#1000  # カットオフ周波数 1kHz
         highcut = 100000#10000  # カットオフ周波数 10kHz
-        #lowcut = 1000  # カットオフ周波数 1kHz
-        #highcut = 10000  # カットオフ周波数 10kHz
+        #lowcut = 10000  # カットオフ周波数 1kHz
+        #highcut = 20000  # カットオフ周波数 10kHz
         #lowcut = 500  # カットオフ周波数 1kHz
         #lowcut = 1000  # カットオフ周波数 1kHz
         #highcut = 2700  # カットオフ周波数 10kHz
@@ -4795,7 +4958,7 @@ class ITB_Analysis:
         #Sxx_condAV = Sxx[:,:-21].reshape(len(frequencies), i_wave, idx_time_period_Sxx).mean(axis=1)
         # スペクトログラムのプロット
         plt.figure(figsize=(5, 6), dpi=150)
-        plt.pcolormesh(times[:idx_time_period_Sxx]-0.01, frequencies/1e3, 10 * np.log10(Sxx_condAV), cmap='jet', vmin=-120, vmax=-105)#shading='gouraud')
+        plt.pcolormesh(times[:idx_time_period_Sxx]-0.01, frequencies/1e3, 10 * np.log10(Sxx_condAV), cmap='jet', vmin=-120, vmax=-100)#shading='gouraud')
         plt.colorbar(label='Intensity [dB]')
         title = '%s(ch.:%d), #%d, t=%.4f-%.4fs' % (data_name_BS, ch_I, self.ShotNo, t_st, t_ed)
         plt.title(title)
@@ -4813,7 +4976,7 @@ class ITB_Analysis:
         #data_BS_condAV = filtered_amplitude_strength[idx_time_st:idx_time_ed].reshape(i_wave, -1).T.mean(axis=-1)
         data_BS_condAV = filtered_amplitude_strength.reshape(i_wave, -1).T.mean(axis=-1)
         #data_BS_condAV = amplitude_strength.reshape(i_wave, -1).T.mean(axis=-1)
-        fs = 5e3#5e3#5e3#1e3
+        fs = 2e2#2e3#5e3#5e3#1e3
         dt = timedata_BS[1]-timedata_BS[0]
         freq = fftpack.fftfreq(len(timedata_BS[:idx_time_period-1]), dt)
         yf = fftpack.rfft(data_BS_condAV) / (int(len(data_BS_condAV) / 2))
@@ -4821,6 +4984,83 @@ class ITB_Analysis:
         yf2[(freq > fs)] = 0
         yf2[(freq < 0)] = 0
         y2 = np.real(fftpack.irfft(yf2) * (int(len(data_BS_condAV) / 2)))
+
+        # 最大値とその時刻を取得
+        max_value = np.max(y2)
+        max_index = np.argmax(y2)
+        time = timedata_BS[:idx_time_period-1]-timedata_BS[0]
+        max_time = time[max_index]
+
+        print(f"Max value: {max_value} \nMax time: {max_time}")
+
+        if isFitting:
+            # 時刻0から0.025sまでのデータを選択
+            start_time = 0.035#0
+            end_time = 0.06#0.1#0.007#0.025
+            timedata_condAV = timedata_BS[:idx_time_period-1]-timedata_BS[0]
+            mask = (timedata_condAV >= start_time) & (timedata_condAV <= end_time)
+            filtered_timedata = timedata_condAV[mask]
+            filtered_data = y2[mask]
+
+            # 0.003sから0.005sのデータを除外
+            exclude_start_time = 0.0029
+            exclude_end_time = 0.0051
+            exclude_mask = (filtered_timedata >= exclude_start_time) & (filtered_timedata <= exclude_end_time)
+            final_timedata = filtered_timedata[~exclude_mask]
+            final_data = filtered_data[~exclude_mask]
+
+            # フィッティング
+            initial_guess = [0, 0.001, 0.04, 0.0005]  # 初期パラメータの推定値
+            #initial_guess = [0, 0.001, 0.020, 0.0005]  # 初期パラメータの推定値
+            params, covariance = curve_fit(extreme_func, final_timedata, final_data, p0=initial_guess)
+            perr = np.sqrt(np.diag(covariance))
+            #perr =np.diag(params)
+
+            # フィッティング結果のパラメータ
+            y0_fit, A_fit, xc_fit, w_fit = params
+            y0_fit_err, A_fit_err, xc_fit_err, w_fit_err = perr
+            print(f"Fitted parameters for Extreme: \ny0 = {y0_fit}±{y0_fit_err}, \nA = {A_fit}±{A_fit_err}, \nxc = {xc_fit}±{xc_fit_err}, \nw = {w_fit}±{w_fit_err}")
+            # フィッティング曲線を生成
+            fit_curve = extreme_func(timedata_condAV, *params)
+
+            # 既に同じショット番号が存在するかチェック
+            existing_shots = set()
+            file_path = "fitting_parameter_Extreme_50to100kHz_20240509.csv"
+            header = ['ShotNo', 'reff_a99_highK', 'y0', 'y0_error', 'A','A_error', 'xc', 'xc_error', 'w',  'w_error']
+            # 既存データの読み込み
+            data_rows = []
+            if os.path.exists(file_path):
+                with open(file_path, mode='r', newline='') as file:
+                    reader = csv.reader(file)
+                    data_rows = list(reader)
+
+            # ヘッダーが存在しない場合は追加
+            if not data_rows:
+                data_rows.append(header)
+
+            data_name_highK = 'mwrm_highK_Power3'  # RADLPXI data_radhinfo = AnaData.retrieve(data_name_info, self.ShotNo, 1)
+            data = AnaData.retrieve(data_name_highK, self.ShotNo, 1)
+            reff_a99_highK = data.getValData('reff/a99')
+            reff_a99_highK_av = reff_a99_highK[idx_time_st:idx_time_ed].mean(axis=-1)
+            # 同じショット番号のデータが存在するかチェックし、存在する場合は上書き
+            new_row = [self.ShotNo, reff_a99_highK_av, y0_fit, y0_fit_err, A_fit, A_fit_err, xc_fit,  xc_fit_err, w_fit, w_fit_err]
+            shot_exists = False
+            for i, row in enumerate(data_rows):
+                if row[0] == str(self.ShotNo):
+                    data_rows[i] = new_row
+                    shot_exists = True
+                    break
+
+            if not shot_exists:
+                data_rows.append(new_row)
+
+            # ファイルに書き込む
+            with open(file_path, mode='w', newline='') as file:
+                writer = csv.writer(file)
+                writer.writerows(data_rows)
+
+            print(f"Data for shot number {self.ShotNo} has been written to the file.")
+
 
         plt.plot(filtered_time, filtered_amplitude_strength)
         #plt.plot(filtered_time, amplitude_strength)
@@ -4832,15 +5072,28 @@ class ITB_Analysis:
         plt.title(title)
         plt.show()
 
-        fig = plt.figure(figsize=(6,4), dpi=150)
+        fig = plt.figure(figsize=(6,6), dpi=150)
+        if isFitting:
+            plt.subplots_adjust(top=0.75)
         plt.plot(timedata_BS[:idx_time_period-1]-timedata_BS[0], data_BS_condAV)
         plt.plot(timedata_BS[:idx_time_period-1]-timedata_BS[0], y2)
-        #plt.xlim(0,0.01)
+        plt.plot(max_time, max_value, 'ro', label='Max point')
         title = 'Cond. Av., %s(ch.:%d), #%d, t=%.3f-%.3fs, \nBnad-pass: %.1f-%.1fkHz' % (data_name_BS, ch_I, self.ShotNo, t_st, t_ed, lowcut/1e3, highcut/1e3)
         plt.xlabel('Time[sec]')
-        plt.title(title)
-        plt.xlim(0, 1/mod_freq)
-        filename = 'CondAv_BS_%s_ch%d_SN%d_t%dto%dms_Bnadpass_%.1fto%.1fkHz.png' % (data_name_BS, ch_I, self.ShotNo, t_st, t_ed, lowcut/1e3, highcut/1e3)
+        if isFitting:
+            plt.plot(timedata_condAV, fit_curve, 'r-', linewidth=2, label='Extreme fit')
+            title_2 = f"\nFitted parameters for Extreme: \ny0 = {y0_fit}±{y0_fit_err}, \nA = {A_fit}±{A_fit_err}, \nxc = {xc_fit}±{xc_fit_err}, \nw = {w_fit}±{w_fit_err}"
+            plt.title(title + title_2, fontsize=13, loc='right')
+            plt.legend()
+        else:
+            plt.title(title)
+
+        #plt.xlim(0,0.01)
+        #plt.xlim(0, 1/mod_freq)
+        plt.xlim(0, 0.1)
+        #plt.ylim(0,0.0005)
+        plt.ylim(0,)
+        filename = 'CondAv_BS_%s_ch%d_SN%d_t%dto%dms_Bnadpass_%.1fto%.1fkHz_fitting.png' % (data_name_BS, ch_I, self.ShotNo, t_st, t_ed, lowcut/1e3, highcut/1e3)
         plt.savefig(filename)
         plt.show()
         if isSaveData:
@@ -4848,12 +5101,142 @@ class ITB_Analysis:
             filename = 'CondAv_BS_%s_ch%d_SN%d_t%dto%dms_Bnadpass_%.1fto%.1fkHz.txt' % (data_name_BS, ch_I, self.ShotNo, t_st, t_ed, lowcut/1e3, highcut/1e3)
             np.savetxt('time_' + filename, t_data_BS.T)
 
-    def ana_plot_DBSADC_condAV_MECH(self, t_st, t_ed, mod_freq):
-        ch_I = 9
-        ch_Q = 10
+    def cross_correlation_BSADC_condAV_MECH(self, t_st, t_ed):
+        '''
+        ch_I = 3
+        ch_I_2 = 19#5
+        ch_Q = 16
         #data_name_DBS = 'MWRM-COMB'    #3-O port comb-R
-        #data_name_DBS = 'MWRM-COMB2'    #9-O port comb
-        data_name_DBS = 'MWRM-PXI'      #9-O R
+        data_name_BS = 'MWRM-COMB2'    #9-O port comb
+        #data_name_DBS = 'MWRM-PXI'      #9-O R
+        #data_name_DBS = 'MWRM-PXI3'      #3-O port comb-U
+        voltdata_BS_I = VoltData.retrieve(data_name_BS,self.ShotNo, 1,ch_I).get_val()
+        voltdata_BS_I_2 = VoltData.retrieve(data_name_BS,self.ShotNo, 1,ch_I_2).get_val()
+        voltdata_BS_Q = VoltData.retrieve(data_name_BS,self.ShotNo, 1,ch_Q).get_val()
+        timedata_BS = TimeData.retrieve(data_name_BS, self.ShotNo, 1, ch_I).get_val()
+        timedata_BS_2 = TimeData.retrieve(data_name_BS, self.ShotNo, 1, ch_I_2).get_val()
+
+        # サンプリング周波数の計算
+        fs = 1 / (timedata_BS[1] - timedata_BS[0])
+
+        '''
+        #ch1(4.0m)
+        ch_I_2 = 17
+        #ch_Q = 18
+        #ch2(4.4m)
+        #ch_I_2 = 23
+        #ch_Q = 24
+        #ch3
+        ch_I = 19
+        ch_Q = 20
+        #ch4(140G,4.4m)
+        #ch_I_2 = 21
+        #ch_Q = 22
+        #data_name_BS = 'MWRM-COMB'    #3-O port comb-R
+        data_name_BS = 'MWRM-COMB2'
+        voltdata_BS_I = VoltData.retrieve(data_name_BS,self.ShotNo, 1,ch_I).get_val()
+        voltdata_BS_I = VoltData.retrieve(data_name_BS,self.ShotNo, 1,ch_I).get_val()
+        voltdata_BS_I_2 = VoltData.retrieve(data_name_BS,self.ShotNo, 1,ch_I_2).get_val()
+        voltdata_BS_Q = VoltData.retrieve(data_name_BS,self.ShotNo, 1,ch_Q).get_val()
+        timedata_BS = TimeData.retrieve(data_name_BS, self.ShotNo, 1, ch_I).get_val()
+        timedata_BS_2 = TimeData.retrieve(data_name_BS, self.ShotNo, 1, ch_I_2).get_val()
+
+        # サンプリング周波数の計算
+        fs = 1 / (timedata_BS[1] - timedata_BS[0])
+
+        # 5秒から7秒の間のデータを抽出
+        start_time = t_st  # 5秒
+        end_time = t_ed  # 7秒
+        start_index = np.searchsorted(timedata_BS, start_time)
+        end_index = np.searchsorted(timedata_BS, end_time)
+        filtered_time = timedata_BS[start_index:end_index]
+        filtered_signal = voltdata_BS_I[start_index:end_index]
+        start_index = np.searchsorted(timedata_BS_2, start_time)
+        end_index = np.searchsorted(timedata_BS_2, end_time)
+        filtered_time_2 = timedata_BS_2[start_index:end_index]
+        filtered_signal_2 = voltdata_BS_I_2[start_index:end_index]
+
+        # サンプリング周波数（Hz）
+        #fs = 48000  # 48kHzを例として使用
+        duration = t_ed - t_st#1.0  # 信号の長さ（秒）
+        t = np.linspace(0, duration, int(fs * duration), endpoint=False)
+
+        # 例として、15kHzの正弦波とノイズを持つ信号を生成
+        #x = np.sin(2 * np.pi * 15000 * t) + 0.5 * np.random.randn(len(t))
+        #y = np.sin(2 * np.pi * 15000 * t + np.pi / 4) + 0.5 * np.random.randn(len(t))
+        x = filtered_signal
+        y = filtered_signal_2
+
+        # フィルタの設定
+        lowcut = 10000.0  # 10kHz
+        highcut = 20000.0  # 20kHz
+        order = 3#5#3#5  # フィルタの次数
+
+        # ウィンドウとステップサイズの設定（サンプル数）
+        #window_size = int(0.05 * fs)  # 0.05秒のウィンドウ
+        #step_size = int(0.01 * fs)  # 0.01秒のステップ
+        window_size = int(0.0005 * fs)  # 0.05秒のウィンドウ
+        step_size = int(0.0002 * fs)  # 0.01秒のステップ
+
+        '''
+        plt.plot(t, x[:-1])
+        plt.plot(t, y[:-1])
+        plt.show()
+        '''
+
+        # 相互相関の時間変化を計算
+        times, lags, cross_correlations = compute_time_evolution_cross_correlation(
+            x, y, fs, lowcut, highcut, window_size, step_size, order)
+
+        # クロスコリレーションを2D配列として格納
+        cc_matrix = np.array(cross_correlations)
+
+        # クロスコリレーション行列を画像としてプロット（横軸を時間、縦軸をラグに変更）
+        fig, axes = plt.subplots(2, 1, figsize=(9, 15))
+
+        # クロスコリレーション行列を画像としてプロット
+        #plt.figure(figsize=(8, 6))
+        #extent = [lags[0], lags[-1], times[-1], times[0]]
+        extent = [times[0], times[-1], lags[0], lags[-1]]  # extentの順序を変更-
+        im = axes[0].imshow(cc_matrix.T, aspect='auto', extent=extent, cmap='seismic',origin='lower', vmin=-0.8, vmax=0.8)
+        fig.colorbar(im, ax=axes[0], label='cross-correlation').set_label('cross-correlation', fontdict={'size':14})
+        axes[0].grid(axis='x', which="major")
+        axes[0].grid(axis='y')
+        axes[0].set_ylabel('Lag [s]', fontsize=14)
+        axes[0].set_xlabel('Time [s]', fontsize=14)
+        #title = '%s(ch.:%d & %d), #%d, t=%.4f-%.4fs' % (data_name_DBS, ch_I,ch_I_2, self.ShotNo, t_st, t_ed)
+        title = '%s(ch.:%d & %d), #%d, t=%.4f-%.4fs' % (data_name_BS, ch_I,ch_I_2, self.ShotNo, t_st, t_ed)
+        axes[0].set_title(title, fontsize=14)
+        axes[0].set_xlim(0,)
+
+        # 2つ目のプロット: 特定の時間（6ms）の相互相関
+        time_point_ms = 3#5.0  # 表示したい時間（ミリ秒）
+        time_point = time_point_ms / 1000  # 秒に変換
+
+        # 時間リストから最も近い時間のインデックスを取得
+        index = np.argmin(np.abs(np.array(times) - time_point))
+        cc_at_time = cc_matrix[index, :]
+
+        axes[1].plot(lags, cc_at_time)
+        axes[1].set_xlabel('Lag [s]')
+        axes[1].set_ylabel('Cross-correlation')
+        title = '%s(ch.:%d & %d), #%d, t=%.4f s' % (data_name_BS, ch_I,ch_I_2, self.ShotNo, times[index])
+        #axes[1].set_title(f'Cross-correlation of t={times[index] * 1000:.1f} ms')
+        axes[1].set_title(title)
+        axes[1].grid(True)
+        plt.tight_layout()
+        #filename = 'Cross_Correlation_%s_ch%dto%d_SN%d_%.3f_%.3fs.png' % (data_name_DBS, ch_I, ch_I_2, self.ShotNo, t_st, t_ed)
+        filename = 'Cross_Correlation_%s_ch%dto%d_SN%d_%.3f_%.3fs_v2.png' % (data_name_BS, ch_I, ch_I_2, self.ShotNo, t_st, t_ed)
+        plt.savefig(filename)
+        plt.show()
+
+    def ana_plot_DBSADC_condAV_MECH(self, t_st, t_ed, mod_freq):
+        ch_I = 15
+        ch_Q = 16
+        #data_name_DBS = 'MWRM-COMB'    #3-O port comb-R
+        data_name_DBS = 'MWRM-COMB2'    #9-O port comb
+        #data_name_DBS = 'MWRM-PXI'      #9-O R
+        #data_name_DBS = 'MWRM-PXI3'      #3-O port comb-U
         voltdata_DBS_I = VoltData.retrieve(data_name_DBS,self.ShotNo, 1,ch_I).get_val()
         voltdata_DBS_Q = VoltData.retrieve(data_name_DBS,self.ShotNo, 1,ch_Q).get_val()
         timedata_DBS = TimeData.retrieve(data_name_DBS, self.ShotNo, 1, ch_I).get_val()
@@ -4994,7 +5377,7 @@ class ITB_Analysis:
         #Sxx_condAV = Sxx[:,:-11].reshape(len(frequencies), i_wave, idx_time_period_Sxx).mean(axis=1)
         # スペクトログラムのプロット
         plt.figure(figsize=(5, 6), dpi=150)
-        plt.pcolormesh(times[:idx_time_period_Sxx]-0.01, frequencies/1e3, 10 * np.log10(Sxx_condAV), cmap='jet', vmin=-100, vmax=-90)#shading='gouraud')
+        plt.pcolormesh(times[:idx_time_period_Sxx]-0.01, frequencies/1e3, 10 * np.log10(Sxx_condAV), cmap='jet', vmin=-65, vmax=-55)#shading='gouraud')
         plt.colorbar(label='Intensity [dB]')
         title = 'CondAV. %s(ch.:%d), #%d, t=%.4f-%.4fs' % (data_name_DBS, ch_I, self.ShotNo, t_st, t_ed)
         plt.title(title)
@@ -5182,7 +5565,7 @@ class ITB_Analysis:
         #np.savetxt('radh_timedata' + filename, timedata[idx_time_st:idx_time_ed])
         return timedata[:idx_time_period]-timedata[0], reff_a99_highK[idx_time_st:idx_time_ed].mean(axis=-1), y2
 
-    def ana_plot_radhpxi_calThom_condAV_MECH(self, t_st, t_ed, mod_freq):
+    def ana_plot_radhpxi_calThom_condAV_MECH(self, t_st, t_ed, mod_freq, isSaveData=False):
         data = AnaData.retrieve('ece_radhpxi_calThom', self.ShotNo, 1)
 
         Te = data.getValData('Te')
@@ -5206,7 +5589,7 @@ class ITB_Analysis:
         idx_time_period = find_closest(timedata, t_st + 1.0/mod_freq) - idx_time_st
         voltdata_array = np.zeros((len(timedata[:idx_time_period]), 32))
         #fs = 1e3
-        fs = 2e3#5e3
+        fs = 1e3#2e3#5e3
         dt = timedata[1] - timedata[0]
         #freq = fftpack.fftfreq(len(timedata[idx_time_st:idx_time_ed]), dt)
         freq = fftpack.fftfreq(len(timedata[:idx_time_period]), dt)
@@ -5263,6 +5646,7 @@ class ITB_Analysis:
 
         voltdata_array_deleted = np.delete(voltdata_array, [22,23,25,30,31], 1)
         rho_deleted = np.delete(rho, [22,23,25,30,31], 0)
+        R_deleted = np.delete(r, [22,23,25,30,31], 0)
         #indices = find_closest_indices(voltdata_array_deleted[int(idx_time_period/10):int(1*idx_time_period/5.0),:], 0.5)
         #indices = find_closest_indices(voltdata_array_deleted[:int(1*idx_time_period/6),:], 0.5)
         indices = find_first_greater_indices(voltdata_array_deleted, 0.5)
@@ -5279,7 +5663,7 @@ class ITB_Analysis:
         print(perr)
 
         fig = plt.figure(figsize=(8,6), dpi=150)
-        title = 'Low-pass(<%dHz), #%d, %.2fs-%.2fs\nd(reff/a99)/dt=%.9f+-%.9f' % (fs, self.ShotNo, t_st, t_ed, popt[0], perr[0])
+        title = 'Low-pass(<%dHz), #%d, %.2fs-%.2fs' % (fs, self.ShotNo, t_st, t_ed)
         plt.title(title, fontsize=18, loc='right')
         #plt.pcolormesh(timedata[:-1], r, (voltdata_array[1:, :]-voltdata_array[:-1, :]).T, cmap='bwr')
         #plt.pcolormesh(timedata, r, (voltdata_array - np.mean(voltdata_array[idex_offset:idex_offset+10000,:], axis=0)).T, cmap='bwr', vmin=-0.3, vmax=0.3)
@@ -5288,11 +5672,11 @@ class ITB_Analysis:
         #plt.pcolormesh(1e3*timedata[:idx_time_period], r, voltdata_array.T, cmap='jet')
         #plt.pcolormesh(1e3*timedata[:idx_time_period], rho, voltdata_array.T, cmap='jet')
         #plt.pcolormesh(1e3*timedata[:idx_time_period], np.delete(rho, [22,30], 0), np.delete(voltdata_array, [22,30], 1).T, cmap='jet')
-        plt.pcolormesh(1e3*timedata[:idx_time_period], rho_deleted, voltdata_array_deleted.T, cmap='jet')
-        plt.plot(1e3*timedata[indices], rho_deleted, 'b.')
-        plt.plot(1e3*timedata[indices[indice_st:indice_ed]], rho_deleted[indice_st:indice_ed], 'r.')
+        plt.pcolormesh(1e3*timedata[:idx_time_period]-1e3*timedata[0], rho_deleted, voltdata_array_deleted.T, cmap='jet')
+        plt.plot(1e3*timedata[indices]-1e3*timedata[0], rho_deleted, 'b.')
+        plt.plot(1e3*timedata[indices[indice_st:indice_ed]]-1e3*timedata[0], rho_deleted[indice_st:indice_ed], 'r.')
         #plt.plot(1e3*timedata[indices], func(1e3*timedata[indices], *popt), 'b')
-        plt.plot(1e3*timedata[indices[indice_st:indice_ed]], func(1e3*timedata[indices[indice_st:indice_ed]], *popt), 'r')
+        plt.plot(1e3*timedata[indices[indice_st:indice_ed]]-1e3*timedata[0], func(1e3*timedata[indices[indice_st:indice_ed]], *popt), 'r')
         #plt.pcolormesh(t, r, Te.T)
         #plt.pcolormesh(t, r[1:-1], (Te[:, 2:]-Te[:, 1:-1]-Te[:, 1:-1]+Te[:, :-2]).T, cmap='bwr')
         cb = plt.colorbar()
@@ -5314,21 +5698,43 @@ class ITB_Analysis:
         #np.savetxt('radh_array' + filename, voltdata_array)
         #np.savetxt('radh_timedata' + filename, timedata[idx_time_st:idx_time_ed])
 
-        plt.pcolormesh(1e3*timedata[:idx_time_period], rho_deleted[:-1], (np.diff(voltdata_array_deleted)).T, cmap='bwr', vmin=-0.5, vmax=0.5)
+        dTe = -(np.diff(voltdata_array_deleted))
+        dTedreffa99=dTe/np.diff(rho_deleted)
+        dTedR=dTe/np.diff(R_deleted)
+        # 各y座標に対して、x方向（横軸）の最大値のインデックスを取得
+        max_indices = np.argmax(dTe, axis=0)  # 各行ごとの最大値のインデックス
+
+        # 最大値のx座標とy座標を取得
+        x_max = 1e3*timedata[:idx_time_period][max_indices]-1e3*timedata[0]
+
+        # 最大値のデータを取得（必要に応じて）
+        #data_max = dTe[np.arange(ny), max_indices]
+
+        fig = plt.figure(figsize=(8,6), dpi=150)
+        title = 'Low-pass(<%dHz), #%d, %.2fs-%.2fs\nd(reff/a99)/dt=%.9f+-%.9f' % (fs, self.ShotNo, t_st, t_ed, popt[0], perr[0])
+        plt.title(title, fontsize=18, loc='right')
+        #plt.pcolormesh(1e3*timedata[:idx_time_period]-1e3*timedata[0], rho_deleted[:-1], -(np.diff(voltdata_array_deleted)).T, cmap='jet', vmin=0, vmax=0.3)
+        #plt.pcolormesh(1e3*timedata[:idx_time_period]-1e3*timedata[0], rho_deleted[:-1], dTedreffa99.T, cmap='jet', vmin=0, vmax=10)
+        plt.pcolormesh(1e3*timedata[:idx_time_period]-1e3*timedata[0], rho_deleted[:-1], dTedR.T, cmap='jet', vmin=0, vmax=10)
+        # 最大値のポイントを赤い丸でプロット
+        plt.plot(x_max, rho_deleted[:-1], 'ro', markersize=10, label='Max')
         cb = plt.colorbar()
-        cb.set_label("dTe [0, 1]", fontsize=22)
+        cb.set_label("dTe/dR [keV/m]", fontsize=22)
         cb.ax.tick_params(labelsize=22)
         #plt.xlim(0, 1e3*(timedata[idx_time_period]-timedata[0]))
         #plt.ylim(np.min(rho_deleted), np.max(rho_deleted))
         plt.xlabel("Time [ms]", fontsize=22)
         plt.ylabel("reff/a99", fontsize=22)
         plt.tick_params(which='both', axis='both', right=True, top=True, left=True, bottom=True, labelsize=22)
+        filename = "dTedR_radhpxi_calThom_t%dto%dms_No%d.png" %(int(t_st*1000), int(t_ed*1000), self.ShotNo)
+        plt.savefig(filename)
         plt.show()
 
         #offset = np.arange(voltdata_array_deleted.shape[1])
         #plt.plot(1e3*timedata[:idx_time_period], np.diff(voltdata_array_deleted) + 0.1*offset[:-1])
-        plt.plot(1e3*timedata[:idx_time_period], np.diff(voltdata_array_deleted))
+        plt.plot(1e3*timedata[:idx_time_period], -np.diff(voltdata_array_deleted))
         plt.grid(which="both", axis="y")
+        plt.ylim(0,0.4)
         plt.show()
 
         '''
@@ -5351,6 +5757,9 @@ class ITB_Analysis:
         plt.show()
         #self.simulate_heat_propagation(timedata[:idx_time_period], voltdata_array[:,5])
         '''
+        if isSaveData:
+            filename = "rho_dTeMax_radhpxi_calThom_LP%dHz_t%dto%dms_No%d.txt" % (fs, int(t_st * 1000), int(t_ed * 1000), self.ShotNo)
+            np.savetxt(filename, np.c_[rho_deleted[:-1], x_max])
 
         return 1e3*timedata[:idx_time_period], rho_deleted, np.diff(voltdata_array_deleted)
         #return 1e3*timedata[:idx_time_period], rho_deleted, voltdata_array_deleted
@@ -5466,6 +5875,7 @@ class ITB_Analysis:
         cb.set_label("Te [0, 1]", fontsize=22)
         cb.ax.tick_params(labelsize=22)
         plt.xlim(0, 1e3*(timedata[idx_time_period]-timedata[0]))
+        #plt.xlim(0, 1e3/mod_freq)
         plt.ylim(np.min(rho_deleted), np.max(rho_deleted))
         plt.xlabel("Time [ms]", fontsize=22)
         #plt.xlim(4.4, 4.6)
@@ -5829,6 +6239,7 @@ class ITB_Analysis:
             np.savetxt('time_gradTe' + filename_gradTe + filename, t_data_gradTe.T)
             np.savetxt('time_highK' + filename_highK + filename, t_data_highK.T)
             np.savetxt('gradTe_highK' + filename_gradTe + filename_highK + filename, data_gradTe_highK.T)
+            np.savetxt('gradTe_2D' + filename, -1*data_gradTe)
 
     def simulate_heat_propagation(self, t, y):
         y_2D = np.zeros((2*len(y), 20))
@@ -7724,14 +8135,153 @@ def extreme_func(x, y0, A, xc, w):
 def lognorm_func(x, s):
     return (1 / (s * x * np.sqrt(2 * np.pi))) * np.exp(- (np.log(x))**2 / (2 * s**2))
 
+def plot_fitting_results_pow():
+    # 2次元のテキストデータ（pow_2D）を2行目から読み込む
+    pow_2D = np.loadtxt('pow_results_all_ordered_modified_20240403.txt', skiprows=1)
+
+    # 1次元のテキストデータ（ne, rho）を2行目から読み込む
+    ne = np.loadtxt('ne_ordered_modified_20240403.txt', skiprows=1)  # x軸に対応
+    rho = np.loadtxt('rho_radh_20240403.txt', skiprows=1)  # y軸に対応
+
+    # プロットの作成
+    plt.figure(figsize=(8, 6))
+
+    # contourfプロットを作成（x=ne, y=rho, z=pow_2D）
+    #contour = plt.contourf(ne, rho, pow_2D.T, levels=50, cmap='jet_r', vmin=-1.1, vmax=0)
+    #contour = plt.pcolormesh(ne, rho, pow_2D.T, cmap='jet_r', vmin=-1.1, vmax=0)
+    contour = plt.pcolormesh(rho,ne, pow_2D, cmap='jet_r', vmin=-1.1, vmax=0)
+
+    # カラーバーを追加
+    cbar = plt.colorbar(contour)
+    cbar.set_label('Power-law exponent')
+
+
+    # 軸ラベルを設定
+    plt.ylabel('ne')
+    plt.xlabel('rho')
+    plt.title('Contourf plot of pow_2D')
+    plt.xlim(0,1)
+
+    # プロットを表示
+    plt.show()
+
+    # 元データの点の組み合わせを作成
+    ne_grid, rho_grid = np.meshgrid(ne, rho)
+
+    # 補完するための新しい滑らかなグリッドを作成
+    ne_new = np.linspace(ne.min(), ne.max(), 400)  # neの範囲を滑らかにする
+    rho_new = np.linspace(rho.min(), rho.max(), 400)  # rhoの範囲を滑らかにする
+    ne_new_grid, rho_new_grid = np.meshgrid(ne_new, rho_new)
+
+    # 補完を実行
+    pow_2D_smooth = griddata((ne_grid.flatten(), rho_grid.flatten()), pow_2D.T.flatten(),
+                             (ne_new_grid, rho_new_grid), method='cubic')
+
+    # プロットの作成
+    plt.figure(figsize=(8, 6))
+
+    # カラーマップをjetの反転にし、値の範囲を-1.1から0に設定してpcolormeshプロットを作成
+    mesh = plt.pcolormesh(ne_new_grid, rho_new_grid, pow_2D_smooth, cmap=plt.cm.jet_r, vmin=-1.1, vmax=0,
+                          shading='auto')
+
+    # カラーバーを追加し、タイトルを設定
+    cbar = plt.colorbar(mesh)
+    cbar.set_label('Power-law exponent')
+
+    # 軸ラベルを設定
+    plt.xlabel('ne (X-axis)')
+    plt.ylabel('rho (Y-axis)')
+    plt.title('Smoothed pcolormesh plot of pow_2D with reversed jet colormap')
+
+    # プロットを表示
+    plt.show()
+
+
+def bandpass_filter(data, lowcut, highcut, fs, order=5):
+    """
+    データにバンドパスフィルタを適用します。
+
+    パラメータ:
+    data: numpy配列, 入力信号
+    lowcut: float, フィルタの下限周波数（Hz）
+    highcut: float, フィルタの上限周波数（Hz）
+    fs: float, サンプリング周波数（Hz）
+    order: int, フィルタの次数（デフォルトは5）
+
+    戻り値:
+    filtered_data: numpy配列, フィルタ後の信号
+    """
+    nyq = 0.5 * fs  # ナイキスト周波数
+    low = lowcut / nyq
+    high = highcut / nyq
+    # バターワースバンドパスフィルタの設計
+    b, a = butter(order, [low, high], btype='band')
+    # フィルタを適用
+    filtered_data = filtfilt(b, a, data)
+    return filtered_data
+
+
+def compute_time_evolution_cross_correlation(x, y, fs, lowcut, highcut, window_size, step_size, order=5):
+    """
+    2つの信号xとyの間の相互相関の時間変化を計算します。
+    指定された周波数帯域でバンドパスフィルタを適用した後、移動ウィンドウを使用して相互相関を計算します。
+
+    パラメータ:
+    x, y: numpy配列, 入力信号
+    fs: float, サンプリング周波数（Hz）
+    lowcut: float, フィルタの下限周波数（Hz）
+    highcut: float, フィルタの上限周波数（Hz）
+    window_size: int, 移動ウィンドウのサイズ（サンプル数）
+    step_size: int, ウィンドウを移動させるステップサイズ（サンプル数）
+    order: int, フィルタの次数（デフォルトは5）
+
+    戻り値:
+    times: 各ウィンドウの中央の時間点のリスト（秒）
+    lags: ラグの時間（秒）のnumpy配列
+    cross_correlations: 各時間ウィンドウでの相互相関関数のリスト
+    """
+    x = np.asarray(x)
+    y = np.asarray(y)
+
+    # バンドパスフィルタを適用して10-20kHzの成分を抽出
+    x_filtered = x#bandpass_filter(x, lowcut, highcut, fs, order)
+    y_filtered = y#bandpass_filter(y, lowcut, highcut, fs, order)
+
+    n = len(x_filtered)
+    num_windows = (n - window_size) // step_size + 1
+    lags = np.arange(-window_size + 1, window_size) / fs  # ラグを秒単位に変換
+    cross_correlations = []
+    times = []
+
+    for i in tqdm(range(0, n - window_size + 1, step_size), desc="相互相関を計算中"):
+        x_window = x_filtered[i:i + window_size]
+        y_window = y_filtered[i:i + window_size]
+        x_mean = np.mean(x_window)
+        y_mean = np.mean(y_window)
+        x_std = np.std(x_window)
+        y_std = np.std(y_window)
+        # 信号を正規化
+        x_norm = x_window - x_mean
+        y_norm = y_window - y_mean
+        # 相互相関を計算
+        cc = np.correlate(x_norm, y_norm, mode='full') / (x_std * y_std * window_size)
+        cross_correlations.append(cc)
+        # ウィンドウの中央の時間を計算
+        times.append((i + window_size // 2) / fs)
+
+    return times, lags, cross_correlations
+
+
 if __name__ == "__main__":
     start = time.time()
     #test_laplace_asymmetric()
-    for i in range(188756,188797):#185798, 185839):#
+    '''
+    for i in range(190893, 190894):#185798, 185839):#
         itba = ITB_Analysis(i, i+2)
         print(i)
         try:
-            itba.fft_all_radh(t_st=4, t_ed=6)
+            #itba.fft_all_radh(t_st=4, t_ed=6)
+            itba.ana_plot_radhpxi_calThom_condAV_MECH(t_st=4.998, t_ed=6.998, mod_freq=10, isSaveData=True)
         #    itba.plot_HSTS()
         #    itba.condAV_radh_highK_mp_trigLowPassRadh(t_st=4, t_ed=6, prom_min=0.1, prom_max=0.4)
         #    itba.ana_plot_pci_condAV_MECH(t_st=4.5, t_ed=5.10, mod_freq=40)
@@ -7743,12 +8293,14 @@ if __name__ == "__main__":
         #    itba.ana_plot_allTS_sharex()
         except Exception as e:
             print(e)
+    '''
+    #plot_fitting_results_pow()
     #ShotNo = input('Enter Shot Number: ')
     #ShotNo = sys.argv[1]
     #ana_findpeaks_shotarray()
     #ana_delaytime_shotarray()
     #itba = ITB_Analysis(int(ShotNo))
-    #itba = ITB_Analysis(188765, 169694)#167088), 163958
+    itba = ITB_Analysis(183396, 169694)#167088), 16395
     #itba.conditional_average_highK_mppk(t_st=4.3, t_ed=4.60)
     #ShotNos = np.arange(178939, 178970)
     #ShotNos = 169690 + np.array([2,3,8,9,17,18,20,22,24,25])
@@ -7796,7 +8348,10 @@ if __name__ == "__main__":
     #itba.ana_plot_HIBP_condAV_MECH(t_st=5.198, t_ed=6.798, mod_freq=2.5)
     #itba.ana_plot_HIBP_condAV_MECH(t_st=4.998, t_ed=6.998, mod_freq=1)
     #itba.ana_plot_HIBP_condAV_MECH(t_st=5.198, t_ed=6.998, mod_freq=5)
-    #itba.ana_plot_BSADC_condAV_MECH(t_st=4.998, t_ed=6.998, mod_freq=10, isSaveData=False)
+    #itba.ana_plot_BSADC_condAV_MECH(t_st=4.998, t_ed=6.998, mod_freq=10, isSaveData=False, isFitting=False)
+    #itba.cross_correlation_BSADC_condAV_MECH(t_st=4.998, t_ed=5.018)#6.998)
+    itba.cross_correlation_BSADC_condAV_MECH(t_st=3.398, t_ed=3.418)#6.998)
+    #itba.ana_plot_BSADC_condAV_MECH(t_st=4.998, t_ed=6.998, mod_freq=1, isSaveData=False, isFitting=True)
     #itba.ana_plot_BSADC_condAV_MECH(t_st=4.998, t_ed=6.998, mod_freq=5)
     #itba.ana_plot_BSADC_condAV_MECH(t_st=3.298, t_ed=4.298, mod_freq=40)
     #itba.ana_plot_BSADC_condAV_MECH(t_st=3.298, t_ed=4.298, mod_freq=40)
@@ -7806,6 +8361,7 @@ if __name__ == "__main__":
     #itba.ana_plot_MPbandpass_condAV_MECH(t_st=4.998, t_ed=6.998, mod_freq=5)
     #itba.ana_plot_MPbandpass_condAV_MECH(t_st=3.298, t_ed=4.298, mod_freq=40)
     #itba.ana_plot_MPbandpass_condAV_MECH(t_st=5.198, t_ed=6.998, mod_freq=5)
+    #itba.ana_plot_DBS_Vp_condAV_MECH(t_st=5.098, t_ed=6.998, mod_freq=10)
     #itba.ana_plot_DBS_condAV_MECH(t_st=5.098, t_ed=6.998, mod_freq=10)
     #itba.ana_plot_DBS_condAV_MECH(t_st=5.998, t_ed=6.998, mod_freq=1)
     #itba.ana_plot_DBS_condAV_MECH(t_st=5.198, t_ed=6.798, mod_freq=2.5)
@@ -7823,9 +8379,9 @@ if __name__ == "__main__":
     #itba.normalize_highK_w_gradTe(t_st=5.998, t_ed=6.998, mod_freq=1, isSaveData=False)
     #itba.normalize_highK_w_gradTe(t_st=5.198, t_ed=6.7980001, mod_freq=2.5, isSaveData=False)
     #itba.normalize_highK_w_gradTe(t_st=5.198, t_ed=6.998, mod_freq=5, isSaveData=False)
-    #itba.ana_plot_radh_condAV_MECH(t_st=5.0, t_ed=7.0, mod_freq=1)
+    #itba.ana_plot_radh_condAV_MECH(t_st=4.998, t_ed=6.998, mod_freq=10)
     #itba.ana_plot_radh_condAV_MECH(t_st=5, t_ed=7, mod_freq=5)
-    #itba.ana_plot_radhpxi_calThom_condAV_MECH(t_st=3.40, t_ed=4.3, mod_freq=40)
+    #itba.ana_plot_radhpxi_calThom_condAV_MECH(t_st=4.998, t_ed=6.998, mod_freq=10, isSaveData=True)
     #itba.plot_TS()
     #itba.plot_2TS()
     #itba.ana_plot_pci_test()
