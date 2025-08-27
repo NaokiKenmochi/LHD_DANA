@@ -4787,126 +4787,272 @@ class ITB_Analysis:
         plt.savefig(filename)
         plt.show()
 
-    def ana_plot_gradTe_vs_highK_MECH(self, t_st, t_ed, mod_freq):
-        _, rho_highK, _ = self.ana_plot_highK_condAV_MECH(t_st+0.1, t_ed, mod_freq)
+    def ana_plot_gradTe_vs_highK_MECH(self, t_st, t_ed, mod_freq, fit_time_range=None):
+        """
+        gradTe と highK の条件付き平均から、オフセット補正・時間マスクを行い、
+        3msビン平均を散布図に追加。線形/比例フィットは指定した時間範囲の
+        データ（ビン平均が基本、足りなければ raw）に対して実施。
+
+        Parameters
+        ----------
+        t_st, t_ed : float
+            解析対象の shot 時刻 [s]
+        mod_freq : float
+            加熱周波数 [Hz]（例: 10）
+        fit_time_range : tuple or None
+            フィットに使う時間範囲 (t_start_s, t_end_s) [s]。周期 0〜1/mod_freq 基準。
+            None の場合は使用可能な全域（マスク・オフセット処理後の全体）を用いる。
+        """
+        import numpy as np
+        import matplotlib.pyplot as plt
+        from scipy.interpolate import interp1d
+        from scipy.stats import linregress, pearsonr
+        from matplotlib.cm import ScalarMappable
+        from matplotlib.patches import Patch
+        from datetime import datetime
+
+        # -------------------- パラメータ --------------------
+        MASK_START_S = 0.0027  # 解析から除外する開始 [s]
+        MASK_END_S = 0.0056  # 解析から除外する終了 [s]
+        OFFSET_MARGIN_MS = 0.7  # オフセット区間の両端を縮める量 [ms]
+        BIN_MS = 5.0  # x–y のビン幅 [ms]
+
+        # -------------------- データ取得 --------------------
+        _, rho_highK, _ = self.ana_plot_highK_condAV_MECH(t_st + 0.1, t_ed, mod_freq)
         timedata_gradTe, rho_gradTe, data_gradTe = self.ana_plot_radhpxi_calThom_condAV_MECH(t_st, t_ed, mod_freq)
         timedata_highK, data_highK = self.ana_plot_BSADC_condAV_MECH(t_st, t_ed, mod_freq)
+
+        # 元コード踏襲（使わないが保持）
         timedata_highK *= 1e3
-        timedata_highK_ = np.linspace(0, 1/mod_freq, len(timedata_highK))
-        timedata_gradTe_ = np.linspace(0, 1/mod_freq, len(timedata_gradTe))
-        f = interp1d(timedata_highK_, data_highK, kind='cubic')
-        data_highK_extended = f(timedata_gradTe_)
 
-        i_rho = np.abs(rho_gradTe - rho_highK).argmin()
-        print(i_rho)
-        #i_rho = 20
+        # 周期時間軸（0〜period）
+        period = 1.0 / float(mod_freq)
+        t_highK = np.linspace(0.0, period, len(timedata_highK))
+        t_grad = np.linspace(0.0, period, len(timedata_gradTe))
 
-        x = -data_gradTe[:,i_rho]  # 説明変数
-        y = data_highK_extended  # 目的変数
-        # -----------------------------------------------------------
-        # 1. 時刻 0.035–0.060 s を除外
-        # -----------------------------------------------------------
-        mask = (timedata_gradTe_ < 0.0027) | (timedata_gradTe_ > 0.0056)  # True なら採用
-        t_f, x_f, y_f = timedata_gradTe_[mask], x[mask], y[mask]
-        plt.plot(timedata_gradTe_,y)
-        plt.plot(t_f,y_f)
+        # highK を gradTe の時間軸へ補間
+        f = interp1d(t_highK, data_highK, kind='cubic',
+                     bounds_error=False, fill_value='extrapolate')
+        y_raw = f(t_grad)  # highK（時系列, 補間済み）
+
+        # gradTe（時系列, 負符号）
+        i_rho = int(np.abs(rho_gradTe - rho_highK).argmin())
+        #i_rho=20
+        #i_rho+=1
+        x_series = -data_gradTe[:, i_rho]
+
+        # -------------------- マスクとオフセット --------------------
+        # 解析で使う/使わない
+        keep_mask = (t_grad < MASK_START_S) | (t_grad > MASK_END_S)  # True=採用
+
+        # オフセット区間（マスク区間より少し短い）
+        margin_s = OFFSET_MARGIN_MS * 1e-3
+        off_st = MASK_START_S + margin_s
+        off_ed = MASK_END_S - margin_s
+        if not (off_st < off_ed):  # 逆転保護
+            off_st, off_ed = MASK_START_S, MASK_END_S
+        idx_offset = (t_grad >= off_st) & (t_grad < off_ed)
+        if np.any(idx_offset):
+            offset_val = float(np.nanmean(y_raw[idx_offset]))
+        else:
+            idx_mask_full = (t_grad >= MASK_START_S) & (t_grad < MASK_END_S)
+            offset_val = float(np.nanmean(y_raw[idx_mask_full])) if np.any(idx_mask_full) else 0.0
+
+        # オフセット差し引き
+        y_corr = y_raw - offset_val
+
+        # -------------------- 参照: 時系列で前後を重ね表示 --------------------
+        fig0, ax0 = plt.subplots(figsize=(7, 3.8))
+        ax0.plot(t_grad, y_raw, label='highK raw', color='tab:red', alpha=0.7)
+        ax0.plot(t_grad, y_corr, label='highK - offset', color='tab:green', alpha=0.9)
+        ax0.axvspan(MASK_START_S, MASK_END_S, color='gray', alpha=0.25, label='masked window')
+        ax0.axvspan(off_st, off_ed, color='orange', alpha=0.25, label='offset window')
+        ax0.axhline(0.0, color='k', lw=0.8, alpha=0.5)
+        ax0.set_xlabel('Time [s]')
+        ax0.set_ylabel('highK (arb.)')
+        ax0.set_title(f'Offset = {offset_val:.3g} (subtracted)')
+        ax0.legend()
+        ax0.grid(alpha=0.3)
+        plt.tight_layout()
         plt.show()
 
-        if t_f.size < 3:  # 念のため
-            raise ValueError("使えるデータ点が 3 未満です。")
-        r,p = pearsonr(x_f, y_f)
-        print(f"Pearson r = {r:.6f},  p-value = {p:.6e}")
+        # -------------------- マスク適用（散布図ベースの配列） --------------------
+        t_f = t_grad[keep_mask]
+        x_f = x_series[keep_mask]
+        y_f = y_corr[keep_mask]
 
-        slope, intercept, r_value, p_value, stderr = linregress(x_f, y_f)
-        R2 = r_value ** 2
-        print(f"y ≈ {intercept:.6g} + {slope:.6g}·x  (R² = {R2:.6f})")
+        # -------------------- 3ms ビン平均（全域ベース） --------------------
+        bin_w = BIN_MS * 1e-3
+        edges = np.arange(0.0, period + 1e-12, bin_w)
+        centers = 0.5 * (edges[:-1] + edges[1:])
 
-        k = np.sum(x_f * y_f) / np.sum(x_f ** 2)  # 最小二乗で傾き k (切片 0)
-        residuals = y_f - k * x_f
-        R2_prop = 1 - residuals.var() / y_f.var()
-        print(f"比例係数 k = {k:.6g},  R² (through 0) = {R2_prop:.36}")
+        x_bin_all, y_bin_all, t_bin_all = [], [], []
+        for L, R, C in zip(edges[:-1], edges[1:], centers):
+            idx = (t_f >= L) & (t_f < R)
+            if np.any(idx):
+                x_bin_all.append(np.nanmean(x_f[idx]))
+                y_bin_all.append(np.nanmean(y_f[idx]))
+                t_bin_all.append(C)
+        x_bin_all = np.asarray(x_bin_all, float)
+        y_bin_all = np.asarray(y_bin_all, float)
+        t_bin_all = np.asarray(t_bin_all, float)
 
-        label_gradTe = 'gradTe(r/a=%.3f)' % rho_gradTe[i_rho]
-        label_highK = 'highK(r/a=%.3f)' % rho_highK
+        # -------------------- フィットに使う時間範囲の選択 --------------------
+        if fit_time_range is None:
+            fit_start_s, fit_end_s = 0.0, period
+        else:
+            fit_start_s, fit_end_s = fit_time_range
+            # 範囲クリップ
+            fit_start_s = max(0.0, float(fit_start_s))
+            fit_end_s = min(period, float(fit_end_s))
+            if not (fit_start_s < fit_end_s):
+                raise ValueError("fit_time_range が不正です（start < end になるよう指定）。")
 
-        # --- プロット --------------------------------------------------------
+        # ビン平均の中から、フィットに使うビンを抽出
+        fit_sel_bins = (t_bin_all >= fit_start_s) & (t_bin_all < fit_end_s)
+        x_bin = x_bin_all[fit_sel_bins]
+        y_bin = y_bin_all[fit_sel_bins]
+        t_bin = t_bin_all[fit_sel_bins]
+
+        # ビンが不十分なら raw にフォールバック（raw も時間でフィルタ）
+        raw_sel = (t_f >= fit_start_s) & (t_f < fit_end_s)
+        use_raw = (x_bin.size < 2) or np.allclose(x_bin, x_bin[0], equal_nan=False)
+        x_fit_src = x_f[raw_sel] if use_raw else x_bin
+        y_fit_src = y_f[raw_sel] if use_raw else y_bin
+        label_suffix = "(raw)" if use_raw else f"({int(BIN_MS)}ms bins)"
+
+        if x_fit_src.size < 3:
+            raise ValueError("選択した時間範囲に有効なデータが不足しています。fit_time_range を見直してください。")
+
+        # -------------------- 相関・回帰（選択時間範囲内のデータで） --------------------
+        try:
+            r_b, p_b = pearsonr(x_fit_src, y_fit_src)
+        except Exception:
+            r_b, p_b = np.nan, np.nan
+
+        try:
+            slope_b, intercept_b, r_value_b, p_value_b, stderr_b = linregress(x_fit_src, y_fit_src)
+            R2_b = float(r_value_b ** 2)
+        except Exception:
+            slope_b = intercept_b = R2_b = np.nan
+            p_value_b = np.nan
+
+        den = np.sum(x_fit_src ** 2)
+        if np.isfinite(den) and den > 0:
+            k_b = np.sum(x_fit_src * y_fit_src) / den
+            var_y = np.var(y_fit_src)
+            R2_prop_b = 1.0 - np.var(y_fit_src - k_b * x_fit_src) / var_y if var_y > 0 else np.nan
+        else:
+            k_b = np.nan
+            R2_prop_b = np.nan
+
+            # -------------------- ★ テキスト保存（CSV） --------------------
+            # 日付スタンプと共通プレフィックス
+        stamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+        prefix = f"time_gradTe_highK_bin_SN{self.ShotNo}_local"
+
+        # 1) 全ビン（mask適用後の全域）
+        if t_bin_all.size > 0:
+            arr_all = np.column_stack([t_bin_all, x_bin_all, y_bin_all])  # [s, gradTe, highK]
+            header_all = (
+                "time_s,gradTe_bin,highK_bin\n"
+                f"meta: mask={MASK_START_S}-{MASK_END_S}s, offset_win={off_st}-{off_ed}s, "
+                f"period={period}s, bin={BIN_MS}ms, mod_freq={mod_freq}Hz"
+            )
+            np.savetxt(f"{prefix}.csv", arr_all, delimiter=",", header=header_all, comments="", fmt="%.9g")
+
+
+        # -------------------- x–y 散布図（時間色）＋ ビン平均（全域）＋ 使用ビン強調 --------------------
         fig, ax = plt.subplots(figsize=(6, 6))
-        # カラーマップ設定（ここでは "viridis"）
         norm = plt.Normalize(vmin=t_f.min(), vmax=t_f.max())
-        sc = ax.scatter(x_f, y_f, c=t_f, cmap='viridis', norm=norm,
-                        s=10, alpha=0.8, label='data')
 
-        # 回帰線
-        xp = np.linspace(x_f.min(), x_f.max(), 200)
-        ax.plot(xp, slope * xp + intercept, 'r-', lw=1.2, label='linear fit')
-        ax.plot(xp, k * xp, 'g--', lw=1.0, label='prop fit')
+        # 元データ（全域, offset-subtracted）
+        sc = ax.scatter(x_f, y_f, c=t_f, cmap='viridis', norm=norm,
+                        s=10, alpha=0.8, label='data (offset-subtracted)')
+
+        # 全ビン平均（淡い輪郭）
+        if x_bin_all.size > 0:
+            ax.scatter(x_bin_all, y_bin_all, s=50, marker='D', facecolors='none',
+                       edgecolors='0.3', linewidths=1.0, label=f'bin avg {BIN_MS:.0f} ms (all)')
+
+        # フィットで使ったビン（太枠＆黒・塗りなしで強調）
+        if (not use_raw) and (x_bin.size > 0):
+            ax.scatter(x_bin, y_bin, s=70, marker='D', facecolors='none',
+                       edgecolors='k', linewidths=1.8, label='bins used for fit')
+
+        # 回帰線（選択範囲のデータで）
+        x_min = np.nanmin(x_fit_src);
+        x_max = np.nanmax(x_fit_src)
+        if np.isfinite(x_min) and np.isfinite(x_max) and x_max > x_min:
+            xp = np.linspace(x_min, x_max, 200)
+            if np.isfinite(slope_b) and np.isfinite(intercept_b):
+                ax.plot(xp, slope_b * xp + intercept_b, 'r-', lw=1.6,
+                        label=f'linear fit {label_suffix}')
+            if np.isfinite(k_b):
+                ax.plot(xp, k_b * xp, 'g--', lw=1.2,
+                        label=f'prop fit {label_suffix}')
 
         ax.set_xlabel('data_gradTe')
-        ax.set_ylabel('data_highK')
+        ax.set_ylabel('data_highK (offset-subtracted)')
         ax.grid(alpha=0.3)
         ax.legend(loc='lower right')
 
-        # --- ④ カラーバー（時間） --------------------------------------------
+        # カラーバー（時間）
         cbar = fig.colorbar(ScalarMappable(norm=norm, cmap='viridis'),
                             ax=ax, pad=0.02, aspect=35)
         cbar.set_label('Time [s]')
 
-        # --- 枠外に統計テキスト ---------------------------------------------
+        # 右上メモ
         info = (
-        f"#{self.ShotNo}, {t_st:.2f}s-{t_ed:.2f}s\n"
-        f"r/a={rho_gradTe[i_rho]:.3g}(gradTe), {rho_highK:.3g}(highK)\n"
-        f"Pearson  r  = {r:.3f}\n"
-            f"p-value      < {np.finfo(float).tiny:.0e}\n"  # p=0 対策
-            f"Linear  y = {intercept:.3g} + {slope:.3g}·x\n"
-            f"R² (linear) = {R2:.3f}\n"
-            f"Proportional k = {k:.3g}\n"
-            f"R² (y=kx)   = {R2_prop:.3f}"
+            f"#{self.ShotNo}, {t_st:.2f}s-{t_ed:.2f}s\n"
+            f"r/a={rho_gradTe[i_rho]:.3g}(gradTe), {rho_highK:.3g}(highK)\n"
+            f"Mask: {MASK_START_S * 1e3:.1f}–{MASK_END_S * 1e3:.1f} ms, "
+            f"Offset win: {off_st * 1e3:.1f}–{off_ed * 1e3:.1f} ms\n"
+            f"Fit window: {fit_start_s * 1e3:.1f}–{fit_end_s * 1e3:.1f} ms\n"
+            f"Pearson {label_suffix}: r = {np.nan_to_num(r_b):.3f}\n"
+            f"Linear {label_suffix}: y = {np.nan_to_num(intercept_b):.3g} + "
+            f"{np.nan_to_num(slope_b):.3g}·x  (R² = {np.nan_to_num(R2_b):.3f})\n"
+            f"Proportional {label_suffix}: k = {np.nan_to_num(k_b):.3g}  "
+            f"(R² = {np.nan_to_num(R2_prop_b):.3f})\n"
+            f"N_bins(all/used) = {int(x_bin_all.size)}/{int(x_bin.size)}"
         )
-        # 左上余白に配置（0–1 は Figure 座標）
-        fig.text(0.15, 0.98, info, va='top', ha='left',
-                 fontsize=9, family='monospace')
+        fig.text(0.15, 0.98, info, va='top', ha='left', fontsize=9, family='monospace')
 
-        # レイアウト調整：右・上に 10% ずつ余白
         plt.tight_layout(rect=[0, 0, 0.95, 0.8])
-        filename = 'highK_vs_gradTe_SN%d_lowfreq.png' % (self.ShotNo)
+        #filename = 'highK_vs_gradTe_SN%_nonlocal.png' % (self.ShotNo)
+        filename = f'highK_vs_gradTe_SN{self.ShotNo}_local.png'
         plt.savefig(filename)
         plt.show()
 
-        fig, ax1 = plt.subplots(figsize=(6, 4))
+        # -------------------- 参考：時間波形にフィット範囲も表示 --------------------
+        label_gradTe = 'gradTe(r/a=%.3f)' % rho_gradTe[i_rho]
+        label_highK = 'highK(r/a=%.3f)' % rho_highK
 
-        # ---- 左軸：gradTe ----
-        ln1, = ax1.plot(timedata_gradTe_, -data_gradTe[:, i_rho],
-                        color='tab:blue', lw=1.5, label='gradTe(' + label_gradTe)
+        fig2, ax1 = plt.subplots(figsize=(6, 4))
+        ln1, = ax1.plot(t_grad, x_series, color='tab:blue', lw=1.5, label='gradTe(' + label_gradTe)
         ax1.set_xlabel('Time [s]')
         ax1.set_ylabel('gradTe', color='tab:blue')
         ax1.tick_params(axis='y', labelcolor='tab:blue')
 
-        # ---- 右軸：highK ----
-        ax2 = ax1.twinx()  # 右軸を追加
-        ln2, = ax2.plot(timedata_gradTe_, data_highK_extended,
-                        color='tab:red', lw=1.5, label='highK(' + label_highK)
+        ax2 = ax1.twinx()
+        ln2, = ax2.plot(t_grad, y_corr, color='tab:red', lw=1.5,
+                        label='highK(' + label_highK + '), offset-subtracted')
         ax2.set_ylabel('highK', color='tab:red')
         ax2.tick_params(axis='y', labelcolor='tab:red')
 
-        # ---- 仕上げ ----
-        # 横軸範囲を両データの共通領域に合わせたい場合
-        #xmin = min(timedata_gradTe_.min(), timedata_highK_.min())
-        #xmax = max(timedata_gradTe_.max(), timedata_highK_.max())
-        #ax1.set_xlim(xmin, xmax)
+        # 区間強調
+        span_mask = Patch(facecolor='gray', alpha=0.25, label='masked window')
+        span_offset = Patch(facecolor='orange', alpha=0.25, label='offset window')
+        span_fit = Patch(facecolor='purple', alpha=0.20, label='fit window')
+        ax1.axvspan(MASK_START_S, MASK_END_S, color='gray', alpha=0.25)
+        ax1.axvspan(off_st, off_ed, color='orange', alpha=0.25)
+        ax1.axvspan(fit_start_s, fit_end_s, color='purple', alpha=0.20)
 
-        # ２系列の凡例をまとめて表示
-        ax1.legend(handles=[ln1, ln2], loc='upper right')
-
+        ax1.legend(handles=[ln1, ln2, span_mask, span_offset, span_fit], loc='upper right')
         ax1.grid(alpha=0.3)
         plt.tight_layout()
         plt.show()
-        
 
-        plt.plot(-data_gradTe[:, i_rho],data_highK_extended , label='gradTe('+label_gradTe + ',highK(' + label_highK)
-        plt.xlim(0,)
-        plt.ylim(0,)
-        plt.legend()
-        plt.show()
 
     def cal_phase_diff_BS_ECE_MECH_BS1ch(self, t_st, t_ed, mod_freq):
         _, rho_highK, _ = self.ana_plot_highK_condAV_MECH(t_st+0.1, t_ed, mod_freq)
@@ -5321,7 +5467,7 @@ class ITB_Analysis:
 
             # 0.003sから0.005sのデータを除外
             exclude_start_time = 0.0029
-            exclude_end_time = 0.0051
+            exclude_end_time = 0.0037
             exclude_mask = (filtered_timedata >= exclude_start_time) & (filtered_timedata <= exclude_end_time)
             final_timedata = filtered_timedata[~exclude_mask]
             final_data = filtered_data[~exclude_mask]
@@ -5456,6 +5602,7 @@ class ITB_Analysis:
         fft_result = fft(filtered_signal)
         freqs = fftfreq(len(filtered_signal), 1 / fs)
 
+        '''
         # 周波数スペクトルのプロット
         plt.figure(figsize=(6, 6))
         plt.plot(freqs[:len(freqs) // 2], np.abs(fft_result)[:len(freqs) // 2])
@@ -5469,6 +5616,7 @@ class ITB_Analysis:
         filename = 'Freq_Spectrum_BS_%s_ch%d_SN%d.png' % (data_name_BS, ch_I, self.ShotNo)
         plt.savefig(filename)
         plt.show()
+        '''
 
         # スペクトログラムの計算
         #nperseg =  12500# 窓長さ
@@ -5580,10 +5728,10 @@ class ITB_Analysis:
         #highcut = 100000#10000  # カットオフ周波数 10kHz
         #lowcut = 5000#1000  # カットオフ周波数 1kHz
         #highcut = 30000#10000  # カットオフ周波数 10kHz
-        #lowcut = 50000#50000#1000  # カットオフ周波数 1kHz
-        #highcut = 100000#10000  # カットオフ周波数 10kHz
-        lowcut = 10000  # カットオフ周波数 1kHz
-        highcut = 20000  # カットオフ周波数 10kHz
+        lowcut = 50000#50000#1000  # カットオフ周波数 1kHz
+        highcut = 100000#10000  # カットオフ周波数 10kHz
+        #lowcut = 10000  # カットオフ周波数 1kHz
+        #highcut = 20000  # カットオフ周波数 10kHz
         #lowcut = 500  # カットオフ周波数 1kHz
         #lowcut = 1000  # カットオフ周波数 1kHz
         #highcut = 2700  # カットオフ周波数 10kHz
@@ -5644,7 +5792,18 @@ class ITB_Analysis:
         plt.figure(figsize=(4.1, 6), dpi=150)
         #plt.pcolormesh(times[:idx_time_period_Sxx]-0.01, frequencies/1e3, 10 * np.log10(Sxx_condAV), cmap='jet', vmin=-120, vmax=-105)#shading='gouraud')
         #plt.pcolormesh(times[:idx_time_period_Sxx]*1000, frequencies/1e3, 10 * np.log10(Sxx_condAV), cmap='jet', vmin=-120, vmax=-105)#shading='gouraud') #preset
-        plt.pcolormesh(times[:idx_time_period_Sxx]*1000, frequencies/1e3, 10 * np.log10(Sxx_condAV), cmap='jet', vmin=-110, vmax=-80)#shading='gouraud')
+        #plt.pcolormesh(times[:idx_time_period_Sxx]*1000, frequencies/1e3, 10 * np.log10(Sxx_condAV), cmap='jet', vmin=-110, vmax=-80, shading='auto')#shading='gouraud')
+        #T, F = np.meshgrid(times[:idx_time_period_Sxx] * 1000, frequencies / 1e3)
+
+        T, F = np.meshgrid(times[:Sxx_condAV.shape[1]] * 1000, frequencies / 1e3)
+
+        plt.pcolormesh(T, F, 10 * np.log10(Sxx_condAV),
+                       cmap='jet', vmin=-110, vmax=-80, shading='auto')
+
+        # shapeが一致していればOK:
+        #plt.pcolormesh(T, F, 10 * np.log10(Sxx_condAV),
+        #               cmap='jet', vmin=-110, vmax=-80, shading='auto')
+        #plt.pcolormesh(T[:, :-1], F[:, :-1], 10 * np.log10(Sxx_condAV), cmap='jet', vmin=-110, vmax=-80, shading='auto')
         cbar = plt.colorbar(pad=0.02)  # <- カラーバーオブジェクトを変数に格納
         cbar.set_label("Intensity [dB]", fontsize=20)  # <- ラベル設定
         cbar.ax.tick_params(labelsize=16)  # <- 目盛りフォントサイズ設定
@@ -5678,10 +5837,24 @@ class ITB_Analysis:
         y2 = np.real(fftpack.irfft(yf2) * (int(len(data_BS_condAV) / 2)))
 
         # 最大値とその時刻を取得
+        exclude_start_time = 0.0025
+        exclude_end_time = 0.0055
+        #exclude_start_time = -0.01
+        #exclude_end_time = 0
+        int_start_time = 0
+        int_end_time = 0.015
+
         max_value = np.max(y2)
         max_index = np.argmax(y2)
         time = timedata_BS[:idx_time_period-1]-timedata_BS[0]
         max_time = time[max_index]
+        mask = (time >= int_start_time) & (time <= int_end_time)
+        sum_y2_1 = np.nansum(y2[mask])
+        area_1 = integrate_uniform_with_linear_gaps(
+            time, y2,
+            t0=int_start_time, t1=int_end_time,  # 0–10 ms
+            gaps=[(exclude_start_time, exclude_end_time)]  # 欠損は直線でブリッジ
+        )
 
         print(f"Max value: {max_value} \nMax time: {max_time}")
 
@@ -5697,9 +5870,18 @@ class ITB_Analysis:
             max_value_2 = np.max(y2_2)
             max_index_2 = np.argmax(y2_2)
             max_time_2 = time[max_index_2]
+            mask = (time >= int_start_time) & (time <= int_end_time)
+            sum_y2_2 = np.nansum(y2_2[mask])
+            area_2 = integrate_uniform_with_linear_gaps(
+                time, y2_2,
+                t0=int_start_time, t1=int_end_time,  # 0–10 ms
+                gaps=[(exclude_start_time, exclude_end_time)]  # 欠損は直線でブリッジ
+            )
 
             print(f"Max value 2:{max_value_2} \nMax time 2: {max_time_2}")
             print(f"Ratio of Max value:{max_value/max_value_2}")
+            print(f"Ratio of 0-10ms(sum):{sum_y2_1/sum_y2_2}")
+            print(f"Ratio of 0-10ms(int):{area_1/area_2}")
 
         if isFitting:
             # 時刻0から0.025sまでのデータを選択
@@ -5711,8 +5893,8 @@ class ITB_Analysis:
             filtered_data = y2[mask]
 
             # 0.003sから0.005sのデータを除外
-            exclude_start_time = 0.0029
-            exclude_end_time = 0.0051
+            #exclude_start_time = 0.0027
+            #exclude_end_time = 0.0053
             exclude_mask = (filtered_timedata >= exclude_start_time) & (filtered_timedata <= exclude_end_time)
             final_timedata = filtered_timedata[~exclude_mask]
             final_data = filtered_data[~exclude_mask]
@@ -5780,49 +5962,170 @@ class ITB_Analysis:
         plt.title(title)
         plt.show()
 
-        fig = plt.figure(figsize=(6,6), dpi=150)
+        # ==== プロット（クラスメソッド内：置き換え可） =========================
+        # 目立たせるための描画順位
+        Z_FILL = 10  # 塗りつぶし（最前面）
+        Z_LINE = 3  # 折れ線
+        Z_MARK = 12  # 極大点（塗りをまたいで見えるよう線より上）
+
+        fig = plt.figure(figsize=(6, 6), dpi=150)
         if isFitting:
             plt.subplots_adjust(top=0.75)
-        plt.plot(timedata_BS[:idx_time_period-1]-timedata_BS[0], data_BS_condAV)
-        plt.plot(timedata_BS[:idx_time_period-1]-timedata_BS[0], y2)
-        plt.plot(max_time, max_value, 'ro', label='Max point')
+
+        t_all = timedata_BS[:idx_time_period - 1] - timedata_BS[0]
+
+        # --- 元の折れ線・極大点（zorder を下げる/調整） ---
+        plt.plot(t_all, data_BS_condAV, zorder=Z_LINE - 1)  # 必要なら残す
+        plt.plot(t_all, y2, label='Band 1', zorder=Z_LINE)
+        plt.plot(max_time, max_value, 'ro', label='Max point', zorder=Z_MARK)
+
         if isBSTwoBand:
-            plt.subplots_adjust(top=0.7)
-            #plt.plot(timedata_BS[:idx_time_period-1]-timedata_BS[0], data_BS_condAV_2)
-            plt.plot(timedata_BS[:idx_time_period-1]-timedata_BS[0], y2_2)
-            plt.plot(max_time_2, max_value_2, 'go', label='Max point 2')
-        title = 'Cond. Av., %s(ch.:%d), #%d, t=%.3f-%.3fs, \nBnad-pass: %.1f-%.1fkHz' % (data_name_BS, ch_I, self.ShotNo, t_st, t_ed, lowcut/1e3, highcut/1e3)
+            plt.subplots_adjust(top=0.65)
+            plt.plot(t_all, y2_2, label='Band 2', zorder=Z_LINE)
+            plt.plot(max_time_2, max_value_2, 'go', label='Max point 2', zorder=Z_MARK)
+
+        # ---- 積分エリア塗り（最前面） ----
+        ax = plt.gca()
+        t0, t1 = int_start_time, int_end_time  # 0–10 ms
+        gap_s, gap_e = exclude_start_time, exclude_end_time
+
+        def _insert_endpoints(t, y, pts):
+            t = np.asarray(t);
+            y = np.asarray(y)
+            for tx in sorted(pts):
+                if (t[0] < tx < t[-1]) and not np.any(np.isclose(t, tx)):
+                    yx = np.interp(tx, t, y)
+                    i = np.searchsorted(t, tx)
+                    t = np.insert(t, i, tx);
+                    y = np.insert(y, i, yx)
+            return t, y
+
+        def _shade_band(t_src, y_src, color_area, color_gap, label_area, label_gap):
+            # 端点を補間で追加（t0, gap_s, gap_e, t1）
+            t, y = _insert_endpoints(t_src, y_src, [t0, gap_s, gap_e, t1])
+
+            # 測定あり区間（欠損以外）を塗る
+            m_left = (t >= t0) & (t <= gap_s)
+            m_right = (t >= gap_e) & (t <= t1)
+            ax.fill_between(t, 0, y, where=m_left,
+                            facecolor=color_area, edgecolor=color_area,
+                            alpha=0.35, linewidth=0.6, zorder=Z_FILL,
+                            label=label_area)
+            ax.fill_between(t, 0, y, where=m_right,
+                            facecolor=color_area, edgecolor=color_area,
+                            alpha=0.35, linewidth=0.6, zorder=Z_FILL)
+
+            # 欠損区間は直線ブリッジで塗る
+            yg_s = np.interp(gap_s, t_src, y_src)
+            yg_e = np.interp(gap_e, t_src, y_src)
+            t_gap = np.linspace(gap_s, gap_e, 100)
+            y_gap = np.linspace(yg_s, yg_e, 100)
+            ax.fill_between(t_gap, 0, y_gap,
+                            facecolor=color_gap, edgecolor=color_gap,
+                            alpha=0.35, linewidth=0.6, zorder=Z_FILL,
+                            label=label_gap)
+
+        # Band 1（観測=青, 欠損ブリッジ=橙）
+        _shade_band(t_all, y2,
+                    color_area='tab:blue', color_gap='tab:orange',
+                    label_area='Integral 0–10 ms (Band 1)',
+                    label_gap='Gap bridge (Band 1)')
+
+        # Band 2（観測=緑, 欠損ブリッジ=紫）
+        if isBSTwoBand:
+            _shade_band(t_all, y2_2,
+                        color_area='tab:green', color_gap='tab:purple',
+                        label_area='Integral 0–10 ms (Band 2)',
+                        label_gap='Gap bridge (Band 2)')
+
+        # ---- 以下は元のタイトル等（略）。凡例だけ重複整理して再掲） ----
+        handles, labels = ax.get_legend_handles_labels()
+        uniq = dict(zip(labels, handles))  # 後勝ちで重複排除
+        ax.legend(uniq.values(), uniq.keys(), loc='upper right', fontsize=9)
+        # ---- ここまで：塗り処理 ---------------------------------------------
+
+        title = 'Cond. Av., %s(ch.:%d), #%d, t=%.3f-%.3fs, \nBnad-pass: %.1f-%.1fkHz' % (
+            data_name_BS, ch_I, self.ShotNo, t_st, t_ed, lowcut / 1e3, highcut / 1e3
+        )
         plt.xlabel('Time[sec]')
+
         if isFitting:
             plt.plot(timedata_condAV, fit_curve, 'r-', linewidth=2, label='Extreme fit')
-            title_2 = f"\nFitted parameters for Extreme: \ny0 = {y0_fit}±{y0_fit_err}, \nA = {A_fit}±{A_fit_err}, \nxc = {xc_fit}±{xc_fit_err}, \nw = {w_fit}±{w_fit_err}"
+            title_2 = (f"\nFitted parameters for Extreme: \n"
+                       f"y0 = {y0_fit}±{y0_fit_err}, \nA = {A_fit}±{A_fit_err}, \n"
+                       f"xc = {xc_fit}±{xc_fit_err}, \nw = {w_fit}±{w_fit_err}")
             plt.title(title + title_2, fontsize=13, loc='right')
-            plt.legend()
+
         if isBSTwoBand:
-            data_name_highK = 'mwrm_highK_Power3'  # RADLPXI data_radhinfo = AnaData.retrieve(data_name_info, self.ShotNo, 1)
+            data_name_highK = 'mwrm_highK_Power3'
             data = AnaData.retrieve(data_name_highK, self.ShotNo, 1)
             reff_a99_highK = data.getValData('reff/a99')
             timedata = data.getDimData('Time')
             idx_time_st_highK = find_closest(timedata, t_st)
-            idx_time_ed_highK = find_closest(timedata, t_ed)  # +1
+            idx_time_ed_highK = find_closest(timedata, t_ed)
             rho_highK = np.mean(reff_a99_highK[idx_time_st_highK:idx_time_ed_highK], axis=0)
-            title_2 = f"\nr/a={rho_highK}\nMax value:{max_value} \nMax time: {max_time}\nBand-pass 2: {lowcut_2/1e3}-{highcut_2/1e3}kHz\nMax value 2:{max_value_2} \nMax time 2: {max_time_2}\nRatio of Max value:{max_value/max_value_2}"
-            title = title + title_2
-            plt.title(title,loc="left")
+            title_2 = (f"\nr/a={rho_highK}\nMax value:{max_value} \nMax time: {max_time}"
+                       f"\nBand-pass 2: {lowcut_2 / 1e3}-{highcut_2 / 1e3}kHz"
+                       f"\nMax value 2:{max_value_2} \nMax time 2: {max_time_2}"
+                       f"\nRatio of Max value:{max_value / max_value_2}"
+                       f"\nRatio of 0-10ms(sum):{sum_y2_1 / sum_y2_2}"
+                       f"\nRatio of 0-10ms(Int.):{area_1 / area_2}")
+            plt.title(title + title_2, loc="left")
+            # 既に同じショット番号が存在するかチェック
+            existing_shots = set()
+            file_path = "ratio_nonlocal2loca_turb_MECH_%dto%dms.csv" % (int_start_time*1000, int_end_time*1000)
+            header = ['ShotNo', 'reffa99_BS','ratio_nonlocal2local_turb_Max', 'ratio_nonlocal2local_turb_Int']
+            # 既存データの読み込み
+            data_rows = []
+            if os.path.exists(file_path):
+                with open(file_path, mode='r', newline='') as file:
+                    reader = csv.reader(file)
+                    data_rows = list(reader)
 
+            # ヘッダーが存在しない場合は追加
+            if not data_rows:
+                data_rows.append(header)
+
+            # 同じショット番号のデータが存在するかチェックし、存在する場合は上書き
+            new_row = [self.ShotNo, rho_highK, max_value/max_value_2, area_1/area_2]
+            shot_exists = False
+            for i, row in enumerate(data_rows):
+                if row[0] == str(self.ShotNo):
+                    data_rows[i] = new_row
+                    shot_exists = True
+                    break
+
+            if not shot_exists:
+                data_rows.append(new_row)
+
+            # ファイルに書き込む
+            with open(file_path, mode='w', newline='') as file:
+                writer = csv.writer(file)
+                writer.writerows(data_rows)
+
+            print(f"Data for shot number {self.ShotNo} has been written to the file.")
         else:
             plt.title(title)
 
-        #plt.xlim(0,0.01)
-        plt.xlim(0, 1/mod_freq)
-        #plt.xlim(0, 0.1)
-        #plt.ylim(0,0.0005)
-        plt.ylim(0,)
-        filename = 'CondAv_BS_%s_ch%d_SN%d_t%dto%dms_Bnadpass_%.1fto%.1fkHz_fitting.png' % (data_name_BS, ch_I, self.ShotNo, t_st, t_ed, lowcut/1e3, highcut/1e3)
+        plt.xlim(0, 1 / mod_freq)
+        plt.ylim(0, )
+
+        # 凡例（重複ラベルを整理）：二バンド時は必ず出す
+        handles, labels = ax.get_legend_handles_labels()
+        uniq = dict(zip(labels, handles))  # 後勝ち
+        if isFitting or isBSTwoBand:
+            ax.legend(uniq.values(), uniq.keys(), loc='upper right', fontsize=9)
+
+        filename = 'CondAv_BS_%s_ch%d_SN%d_t%dto%dms_Bnadpass_%.1fto%.1fkHz_fitting.png' % (
+            data_name_BS, ch_I, self.ShotNo, t_st, t_ed, lowcut / 1e3, highcut / 1e3)
         if isBSTwoBand:
-            filename = 'CondAv_BS_%s_ch%d_SN%d_t%dto%dms_Bnadpass_%.1fto%.1fkHz_and_%.1fto%.1fkHz.png' % (data_name_BS, ch_I, self.ShotNo, t_st, t_ed, lowcut/1e3, highcut/1e3, lowcut_2/1e3, highcut_2/1e3)
+            filename = 'CondAv_BS_%s_ch%d_SN%d_t%dto%dms_Bnadpass_%.1fto%.1fkHz_and_%.1fto%.1fkHz_v2.png' % (
+                data_name_BS, ch_I, self.ShotNo, t_st, t_ed, lowcut / 1e3, highcut / 1e3, lowcut_2 / 1e3,
+                highcut_2 / 1e3)
+
         plt.savefig(filename)
         plt.show()
+        # =====================================================================
         if isSaveData:
             t_data_BS = np.vstack((timedata_BS[:idx_time_period-1]-timedata_BS[0], y2))
             filename = 'CondAv_BS_%s_ch%d_SN%d_t%dto%dms_Bnadpass_%.1fto%.1fkHz.txt' % (data_name_BS, ch_I, self.ShotNo, t_st, t_ed, lowcut/1e3, highcut/1e3)
@@ -5830,7 +6133,7 @@ class ITB_Analysis:
 
         return timedata_BS[:idx_time_period-1]-timedata_BS[0], y2
 
-    def conditional_average_BSADC(self, t_st=None, t_ed=None, arr_peak_selection=None, arr_toff=None):
+    def conditional_average_BSADC(self, t_st=None, t_ed=None, arr_peak_selection=None, arr_toff=None, isBSTwoBand=False):
         #ch1(4.0m)
         ch_I = 17
         ch_Q = 18
@@ -5845,6 +6148,9 @@ class ITB_Analysis:
         #ch_Q = 22
         #data_name_BS = 'MWRM-COMB'    #3-O port comb-R
         data_name_BS = 'MWRM-COMB2'
+        #data_name_BS = 'MWRM-PXI'   #for BS in 2021
+        #ch_I = 11
+        #ch_Q = 12
         #ch_I = 9
         #data_name_BS = 'MWRM-PXI'
         voltdata_BS_I = VoltData.retrieve(data_name_BS,self.ShotNo, 1,ch_I).get_val()
@@ -5864,10 +6170,10 @@ class ITB_Analysis:
 
 
         # スペクトログラムの計算
-        nperseg =  5000# 窓長さ   for 10Hz MECH
-        noverlap =  4750  # 窓のオーバーラップ
-        nperseg =  12500# 窓長さ
-        noverlap =  512  # 窓のオーバーラップ
+        #nperseg =  5000# 窓長さ   for 10Hz MECH
+        #noverlap =  4750  # 窓のオーバーラップ
+        #nperseg =  12500# 窓長さ
+        #noverlap =  512  # 窓のオーバーラップ
         #nperseg =  2**15# 窓長さ
         #noverlap =  2**8  # 窓のオーバーラップ
         #nperseg =  50000# 窓長さ
@@ -5915,6 +6221,16 @@ class ITB_Analysis:
         filtered_amplitude_strength = np.abs(filtfilt(b, a, amplitude_strength))
 
 
+        if isBSTwoBand:
+            lowcut_2 = 50000#50000#1000  # カットオフ周波数 1kHz
+            highcut_2 = 100000#10000  # カットオフ周波数 10kHz
+            low_2 = lowcut_2 / nyquist
+            high_2 = highcut_2 / nyquist
+            b_2, a_2 = butter(order, [low_2, high_2], btype='band')
+
+            # 複素振幅強度にフィルタを適用
+            filtered_amplitude_strength_2 = np.abs(filtfilt(b_2, a_2, amplitude_strength))
+
         #Sxx_condAV = Sxx[:,:-1].reshape(len(frequencies), i_wave, idx_time_period_Sxx).mean(axis=1)
         # --- サイズ整合チェック & 自動 period 算出 ---
         Sxx_work = Sxx[:, :-1]  # Nyquist 行を除く（:-1 は現行コードと同じ）
@@ -5924,12 +6240,16 @@ class ITB_Analysis:
         vnum = data.getValNo()
         for i in range(vnum):
             print(i, data.getValName(i), data.getValUnit(i))
-        t = data.getDimData('Time')
+        t_0 = data.getDimData('Time')
+        #t = data.getDimData('Time')
         t = timedata_BS
 
-        data_highK = data.getValData('Amplitude (20-200kHz)')
+        data_highK_0 = data.getValData('Amplitude (20-200kHz)')
+        #data_highK = data.getValData('Amplitude (20-200kHz)')
         data_highK = voltdata_BS_I
         plt.plot(t, data_highK)
+        #plt.plot(t_0, data_highK_0)
+        plt.xlim([4.3,4.6])
         plt.show()
 
         data_name_info = 'radhinfo' #radlinfo
@@ -5960,26 +6280,26 @@ class ITB_Analysis:
 
         #timedata_peaks_ltd = timedata_peaks_ltd_
         #arr_peak_selection = [0,2,3,5,6,7]#169714
-        #arr_peak_selection = [0,6,7,8,9,10,12,13]#169715
-        #arr_peak_selection = [1,2,5,6,7,8]#169712
-        arr_peak_selection =[0,1,2,3,4,10,11] #169710
-        #arr_peak_selection =[2,3,4] #169692
-        #arr_peak_selection =[1,2,8] #169693
-        #arr_peak_selection =[5,7,10] #169698
-        #arr_peak_selection = [10] #169699
-        #arr_peak_selection = [3,4,10] #169707
-        #arr_peak_selection = [3,4,5,8,10,11,13] #169708
-        timedata_peaks_ltd = timedata_peaks_ltd_[arr_peak_selection]
-        arr_toff = [-2e-4, 0, -2e-4, -3e-4, -3e-4, -2e-4, -1e-4]    #169710
-        #arr_toff = [-2e-4, -3.5e-4, -3.5e-4, -1.5e-4, -2.5e-4, 0.5e-4]    #169712
-        #arr_toff = 1e-4*np.array([-3,-1,0,-0.5,-1,-3,-2,-0.5])    #169715
         #arr_toff = 1e-4*np.array([-1.2,0,-1,-0.5,-1,-1])    #169714
+        #arr_peak_selection = [0,6,7,8,9,10,12,13]#169715
+        #arr_toff = 1e-4*np.array([-3,-1,0,-0.5,-1,-3,-2,-0.5])    #169715
+        #arr_peak_selection = [1,2,5,6,7,8]#169712
+        #arr_peak_selection =[0,1,2,3,4,10,11] #169710
+        #arr_peak_selection =[2,3,4] #169692
         #arr_toff = 1e-4*np.array([-1,-3.5,-4])    #169692
+        #arr_peak_selection =[1,2,8] #169693
         #arr_toff = 1e-4*np.array([-3,-2,-2])    #169693
+        #arr_peak_selection =[5,7,10] #169698
         #arr_toff = 1e-4*np.array([-2,-1,0])    #169698
+        #arr_peak_selection = [10] #169699
         #arr_toff = 1e-4*np.array([-0.5])    #169699
+        #arr_peak_selection = [3,4,10] #169707
         #arr_toff = 1e-4*np.array([1.2,-2.2,-1.0])    #169707
-        #arr_toff = 1e-4*np.array([-0.6,-0.9,0.1,-1,-2,-3.2,0])    #169708
+        arr_peak_selection = [3,4,5,8,10,11,13] #169708
+        arr_toff = 1e-4*np.array([-0.6,-0.9,0.1,-1,-2,-3.2,0])    #169708
+        timedata_peaks_ltd = timedata_peaks_ltd_[arr_peak_selection]
+        #arr_toff = [-2e-4, 0, -2e-4, -3e-4, -3e-4, -2e-4, -1e-4]    #169710
+        #arr_toff = [-2e-4, -3.5e-4, -3.5e-4, -1.5e-4, -2.5e-4, 0.5e-4]    #169712
         #timedata_peaks_ltd = np.array(timedata_peaks_ltd, dtype=np.float64)
         #arr_toff = float(arr_toff)
         timedata_peaks_ltd -= arr_toff
@@ -5998,6 +6318,9 @@ class ITB_Analysis:
                 '''
                 buf_radh = voltdata_array[find_closest(timedata, timedata_peaks_ltd[i]-t_st_condAV):find_closest(timedata, timedata_peaks_ltd[i]+t_ed_condAV), :]
                 buf_highK = data_highK[find_closest(t, timedata_peaks_ltd[i]-t_st_condAV):find_closest(t, timedata_peaks_ltd[i]+t_ed_condAV)]
+                buf_BS_1 = filtered_amplitude_strength[find_closest(filtered_time, timedata_peaks_ltd[i]-t_st_condAV):find_closest(filtered_time, timedata_peaks_ltd[i]+t_ed_condAV)]
+                buf_BS_2 = filtered_amplitude_strength_2[find_closest(filtered_time, timedata_peaks_ltd[i]-t_st_condAV):find_closest(filtered_time, timedata_peaks_ltd[i]+t_ed_condAV)]
+                buf_t_BS =filtered_time[find_closest(filtered_time, timedata_peaks_ltd[i]-t_st_condAV):find_closest(filtered_time, timedata_peaks_ltd[i]+t_ed_condAV)] - timedata_peaks_ltd[i]
                 buf_mp = data_mp_2d[find_closest(t_mp, timedata_peaks_ltd[i]-t_st_condAV):find_closest(t_mp, timedata_peaks_ltd[i]+t_ed_condAV), 0]
                 buf_Sxx = Sxx_work[:, find_closest(times_Sxx, timedata_peaks_ltd[i]-t_st_condAV):find_closest(times_Sxx, timedata_peaks_ltd[i]+t_ed_condAV)]
                 buf_t_radh = timedata[find_closest(timedata, timedata_peaks_ltd[i]-t_st_condAV):find_closest(timedata, timedata_peaks_ltd[i]+t_ed_condAV)] - timedata_peaks_ltd[i]
@@ -6009,6 +6332,17 @@ class ITB_Analysis:
                 try:
                     buf_radh += voltdata_array[find_closest(timedata, timedata_peaks_ltd[i]-t_st_condAV):find_closest(timedata, timedata_peaks_ltd[i]+t_ed_condAV), :]
                     buf_highK += data_highK[find_closest(t, timedata_peaks_ltd[i]-t_st_condAV):find_closest(t, timedata_peaks_ltd[i]+t_ed_condAV)]
+                    buf_BS_1 += filtered_amplitude_strength[
+                        find_closest(filtered_time, timedata_peaks_ltd[i] - t_st_condAV):find_closest(filtered_time,
+                                                                                                    timedata_peaks_ltd[
+                                                                                                        i] + t_ed_condAV)]
+                    buf_BS_2 += filtered_amplitude_strength_2[
+                        find_closest(filtered_time, timedata_peaks_ltd[i] - t_st_condAV):find_closest(filtered_time,
+                                                                                                    timedata_peaks_ltd[
+                                                                                                        i] + t_ed_condAV)]
+                    buf_t_BS =filtered_time[
+                                      find_closest(filtered_time, timedata_peaks_ltd[i] - t_st_condAV):find_closest(
+                                          filtered_time, timedata_peaks_ltd[i] + t_ed_condAV)] - timedata_peaks_ltd[i]
                     #buf_highK_ = data_highK[find_closest(t, timedata_peaks_ltd[i]-t_st_condAV):find_closest(t, timedata_peaks_ltd[i]+t_ed_condAV)]
                     #buf_highK_ -= np.average(buf_highK_[:100], axis=0)
                     #buf_highK += buf_highK_
@@ -6054,6 +6388,8 @@ class ITB_Analysis:
         cond_av_highK = buf_highK/len(timedata_peaks_ltd)
         cond_av_mp = buf_mp/len(timedata_peaks_ltd)
         cond_av_Sxx = buf_Sxx/len(timedata_peaks_ltd)
+        data_BS_condAV = buf_BS_1/len(timedata_peaks_ltd)
+        data_BS_condAV_2 = buf_BS_2/len(timedata_peaks_ltd)
         fig = plt.figure()
         ax1 = fig.add_subplot(111)
         ax2 = ax1.twinx()
@@ -6096,6 +6432,74 @@ class ITB_Analysis:
         #plt.xticks([0, 20, 40, 60, 80, 100])
         filename = 'Spectgram_condAV_BS_%s_ch%d_SN%d_ITBcollapse.png' % (data_name_BS, ch_I, self.ShotNo)
         plt.tight_layout()
+        plt.savefig(filename)
+        plt.show()
+
+        fs = 2e3#2e2#2e3#5e3#5e3#1e3
+        dt = np.abs(buf_t_BS[1]-buf_t_BS[0])#timedata_BS[1]-timedata_BS[0]
+        freq = fftpack.fftfreq(len(buf_t_BS), dt)
+        yf = fftpack.rfft(data_BS_condAV) / (int(len(data_BS_condAV) / 2))
+        yf2 = np.copy(yf)
+        yf2[(freq > fs)] = 0
+        yf2[(freq < 0)] = 0
+        y2 = np.real(fftpack.irfft(yf2) * (int(len(data_BS_condAV) / 2)))
+
+        # 最大値とその時刻を取得
+        max_value = np.max(y2)
+        max_index = np.argmax(y2)
+        time = buf_t_BS
+        max_time = time[max_index]
+
+        print(f"Max value: {max_value} \nMax time: {max_time}")
+
+        if isBSTwoBand:
+            yf_2 = fftpack.rfft(data_BS_condAV_2) / (int(len(data_BS_condAV_2) / 2))
+            yf2_2 = np.copy(yf_2)
+            yf2_2[(freq > fs)] = 0
+            yf2_2[(freq < 0)] = 0
+            y2_2 = np.real(fftpack.irfft(yf2_2) * (int(len(data_BS_condAV_2) / 2)))
+
+            # 最大値とその時刻を取得
+            max_value_2 = np.max(y2_2)
+            max_index_2 = np.argmax(y2_2)
+            max_time_2 = time[max_index_2]
+
+            print(f"Max value 2:{max_value_2} \nMax time 2: {max_time_2}")
+            print(f"Ratio of Max value:{max_value/max_value_2}")
+        fig = plt.figure(figsize=(6,6), dpi=150)
+        plt.plot(buf_t_BS, data_BS_condAV)
+        plt.plot(buf_t_BS, y2)
+        plt.plot(max_time, max_value, 'ro', label='Max point')
+        if isBSTwoBand:
+            plt.subplots_adjust(top=0.7)
+            #plt.plot(timedata_BS[:idx_time_period-1]-timedata_BS[0], data_BS_condAV_2)
+            plt.plot(buf_t_BS, y2_2)
+            plt.plot(max_time_2, max_value_2, 'go', label='Max point 2')
+        title = 'Cond. Av., %s(ch.:%d), #%d, t=%.3f-%.3fs, \nBnad-pass: %.1f-%.1fkHz' % (data_name_BS, ch_I, self.ShotNo, t_st, t_ed, lowcut/1e3, highcut/1e3)
+        plt.xlabel('Time[sec]')
+        if isBSTwoBand:
+            data_name_highK = 'mwrm_highK_Power3'  # RADLPXI data_radhinfo = AnaData.retrieve(data_name_info, self.ShotNo, 1)
+            data = AnaData.retrieve(data_name_highK, self.ShotNo, 1)
+            reff_a99_highK = data.getValData('reff/a99')
+            timedata = data.getDimData('Time')
+            idx_time_st_highK = find_closest(timedata, t_st)
+            idx_time_ed_highK = find_closest(timedata, t_ed)  # +1
+            rho_highK = np.mean(reff_a99_highK[idx_time_st_highK:idx_time_ed_highK], axis=0)
+            title_2 = f"\nr/a={rho_highK}\nMax value:{max_value} \nMax time: {max_time}\nBand-pass 2: {lowcut_2/1e3}-{highcut_2/1e3}kHz\nMax value 2:{max_value_2} \nMax time 2: {max_time_2}\nRatio of Max value:{max_value/max_value_2}"
+            title = title + title_2
+            plt.title(title,loc="left")
+
+        else:
+            plt.title(title)
+
+        #plt.xlim(0,0.01)
+        #plt.xlim(0, 1/mod_freq)
+        #plt.xlim(0, 0.1)
+        #plt.ylim(0,0.0005)
+        plt.ylim(0,)
+        filename = 'CondAv_BS_%s_ch%d_SN%d_t%dto%dms_Bnadpass_%.1fto%.1fkHz_fitting.png' % (data_name_BS, ch_I, self.ShotNo, t_st, t_ed, lowcut/1e3, highcut/1e3)
+        if isBSTwoBand:
+            filename = 'CondAv_BS_%s_ch%d_SN%d_t%dto%dms_Bnadpass_%.1fto%.1fkHz_and_%.1fto%.1fkHz.png' % (data_name_BS, ch_I, self.ShotNo, t_st, t_ed, lowcut/1e3, highcut/1e3, lowcut_2/1e3, highcut_2/1e3)
         plt.savefig(filename)
         plt.show()
 
@@ -6662,6 +7066,7 @@ class ITB_Analysis:
                                                                               -1).T * data_highK_probe_condAV_01.reshape(
             -1, 1)).mean(axis=-1) * i_wave / np.sum(data_highK_probe_condAV_01)
 
+        '''
         fs = 5e3#5e3#5e3#1e3
         dt = timedata[1] - timedata[0]
         #freq = fftpack.fftfreq(len(timedata[idx_time_st:idx_time_ed]), dt)
@@ -6672,7 +7077,32 @@ class ITB_Analysis:
         yf2[(freq > fs)] = 0
         yf2[(freq < 0)] = 0
         y2 = np.real(fftpack.irfft(yf2) * (int(len(data_highK_condAV_mask) / 2)))
+        '''
+        # --- 修正後：rFFT と rfftfreq のペアでサイズ厳密一致、明確なカットオフ ---
+        F_CUT = 5e3  # [Hz] ローパスのカットオフ。必要に応じて変更
+        dt = float(timedata[1] - timedata[0])
+        N = int(idx_time_period)  # この周期ぶんだけを使用
+        x = np.asarray(data_highK_condAV[:N], float)  # 元系列を N に揃える
 
+        # NaN が混じると FFT は壊れるのでゼロ埋め（必要なら事前補間に変更可）
+        x = np.nan_to_num(x, nan=0.0, posinf=0.0, neginf=0.0)
+
+        # rFFT と対応する周波数軸（長さは N//2+1 で常に一致）
+        freq = fftpack.rfftfreq(N, d=dt)  # >= 0 のみ
+        Y = fftpack.rfft(x, n=N)
+
+        # Nyquist を超えないようにカットオフをクリップ
+        nyq = 0.5 / dt
+        f_cut = min(F_CUT, nyq)
+
+        # ローパス：カットオフより上をゼロ化（負周波数は rFFT なので存在しない）
+        Y[freq > f_cut] = 0.0
+
+        # 逆変換（スケーリングは fft/ifft に委ねる。長さ N に戻る）
+        y2 = fftpack.irfft(Y, n=N)
+
+
+        '''
         # 時刻0から0.025sまでのデータを選択
         start_time = 0
         end_time = 0.025
@@ -6680,6 +7110,36 @@ class ITB_Analysis:
         mask = (timedata_condAV >= start_time) & (timedata_condAV <= end_time)
         filtered_timedata = timedata_condAV[mask]
         filtered_data = data_highK_condAV[mask]
+        '''
+        # ---- 時間窓の指定 ----
+        start_time = 0.0
+        end_time = 0.025  # [s]
+
+        # ---- 時系列とデータを同じ長さ N に揃える ----
+        dt = float(timedata[1] - timedata[0])
+        N = min(int(idx_time_period), len(timedata), len(data_highK_condAV))
+
+        t0 = timedata[0]
+        timedata_condAV = np.asarray(timedata[:N], dtype=float) - t0  # ← 必ず定義
+        data_highK_condAV = np.asarray(data_highK_condAV[:N], dtype=float)  # 長さ N に揃える
+        t = np.asarray(timedata[:N], dtype=float) - t0  # 0 起点の時間配列（長さ N）
+        x = np.asarray(data_highK_condAV[:N], dtype=float)  # データ（長さ N）
+
+        # end_time が範囲外にならないよう安全にクリップ
+        end_time = min(end_time, t[-1] + 0.5 * dt)
+
+        # ---- マスク作成：半開区間 [start, end) 推奨 ----
+        mask = (t >= start_time) & (t < end_time)
+
+        # ---- マスク適用（長さは必ず一致）----
+        filtered_timedata = t[mask]
+        filtered_data = x[mask]
+
+        # 追加の安全策：空チェック
+        if filtered_timedata.size == 0:
+            raise ValueError(
+                "指定した時間窓にデータがありません。start_time / end_time / idx_time_period を確認してください。"
+            )
 
         # 0.003sから0.005sのデータを除外
         exclude_start_time = 0.0029
@@ -6753,9 +7213,22 @@ class ITB_Analysis:
 
         fig = plt.figure(figsize=(8,6), dpi=150)
         plt.plot(timedata[:idx_time_period]-timedata[0], data_highK_condAV)#, label=label)
-        plt.plot(timedata[:idx_time_period]-timedata[0], data_highK_condAV_mask, label='masked')#, label=label)
-        label_lowpass = 'Low-pass(<%dHz)' % fs
+        #plt.plot(timedata[:idx_time_period]-timedata[0], data_highK_condAV_mask, label='masked')#, label=label)
+        # ---- プロット直前で長さを必ず揃える ----
+        # timedata, data_highK_condAV_mask, idx_time_period が既にある前提
+        N_plot = min(int(idx_time_period), len(timedata), len(data_highK_condAV_mask))
+
+        t0 = float(timedata[0])
+        t_plot = np.asarray(timedata[:N_plot], dtype=float) - t0
+        y_mask = np.asarray(data_highK_condAV_mask[:N_plot], dtype=float)
+
+        # デバッグ用の安全確認（不要なら削除可）
+        assert t_plot.shape[0] == y_mask.shape[0], \
+            f"len(t_plot)={t_plot.size}, len(y_mask)={y_mask.size}"
+
+        label_lowpass = 'Low-pass(<%dHz)' % F_CUT#fs
         plt.plot(timedata[:idx_time_period]-timedata[0], y2, label=label_lowpass)#, label=label)
+        plt.plot(t_plot, y_mask, label='masked')  # ← これで次元不一致が解消
         #plt.xlim(4.4, 4.6)
         plt.xlabel('Time [sec]')
         title = '%s, #%d, %.2fs-%.2fs, reff/a99=%.3f' % (data_name_highK, self.ShotNo, t_st, t_ed, reff_a99_highK[idx_time_st:idx_time_ed].mean(axis=-1))
@@ -6879,6 +7352,7 @@ class ITB_Analysis:
         voltdata_array_deleted = np.delete(voltdata_array, [22,23,25,30,31], 1)
         rho_deleted = np.delete(rho, [22,23,25,30,31], 0)
         R_deleted = np.delete(r, [22,23,25,30,31], 0)
+        '''
         #indices = find_closest_indices(voltdata_array_deleted[int(idx_time_period/10):int(1*idx_time_period/5.0),:], 0.5)
         #indices = find_closest_indices(voltdata_array_deleted[:int(1*idx_time_period/6),:], 0.5)
         #indices = find_first_greater_indices(voltdata_array_deleted, 0.5)
@@ -6894,6 +7368,71 @@ class ITB_Analysis:
         perr = np.sqrt((np.diag(pcov)))
         print(popt)
         print(perr)
+        '''
+        # --- しきい値を超える「最初の時刻インデックス」を各列で取得 ---
+        indices_raw = find_first_greater_indices(voltdata_array_deleted, 0.03)
+
+        # indices の形を正規化（1 次元: 各半径 1 つの整数インデックス） ----------------------
+        if isinstance(indices_raw, np.ndarray) and indices_raw.dtype == bool:
+            # 形 (Nt, Nch_sel) のブールマスクで返ってきた場合：各列で最初の True の位置
+            idx_list = []
+            for j in range(indices_raw.shape[1]):
+                col = indices_raw[:, j]
+                if np.any(col):
+                    idx_list.append(np.argmax(col))  # 最初の True
+                else:
+                    idx_list.append(-1)  # 未検出
+            indices = np.asarray(idx_list, dtype=int)
+        else:
+            # 想定どおり 1D の整数配列、あるいは他形状でも ravel して 1D 化
+            indices = np.asarray(indices_raw).ravel().astype(int)
+
+        # 長さを rho_deleted に合わせる（列数と一致させる） ----------------------------------
+        Nch_sel = voltdata_array_deleted.shape[1]
+        if indices.size != Nch_sel:
+            # 余分なら切り詰め、不足なら無効値で埋める（ch順序の対応を優先）
+            idx_tmp = -np.ones(Nch_sel, dtype=int)
+            n_copy = min(indices.size, Nch_sel)
+            idx_tmp[:n_copy] = indices[:n_copy]
+            indices = idx_tmp
+
+        # 未検出や範囲外を除外（時間配列の範囲チェック）
+        Nt = len(timedata)
+        valid_ch = (indices >= 0) & (indices < Nt)
+
+        # ch 抽出後に、もとのスライス指定を適用 -----------------------------------------------
+        indice_st = 0
+        indice_ed = -5
+        # まず有効chで揃える
+        rho_sel = rho_deleted[valid_ch]
+        indices_sel = indices[valid_ch]
+
+        # スライス（-5 なら末尾5本を除外）
+        if indice_ed == 0:
+            ch_slice = slice(indice_st, None)
+        else:
+            ch_slice = slice(indice_st, indice_ed)
+
+        rho_fit = rho_sel[ch_slice]
+        time_idx = indices_sel[ch_slice]
+
+        # 最終的に x(時刻[ms]) と y(ρ) の長さが一致していることを保証 --------------------------
+        if rho_fit.size < 3 or time_idx.size != rho_fit.size:
+            raise ValueError(
+                f"有効データ不足または長さ不一致: len(time_idx)={time_idx.size}, len(rho_fit)={rho_fit.size}. "
+                "しきい値や除外チャンネル、indice_st/indice_ed を調整してください。"
+            )
+
+        # x: 時刻 [ms]（本のコードに合わせて t0 を引かずに単純に 1e3*timedata[...]）
+        x_ms = 1e3 * np.asarray(timedata)[time_idx]
+        y_rho = rho_fit
+
+        # フィット（func は ρ = func(t_ms, *p) を想定）
+        popt, pcov = curve_fit(func, x_ms, y_rho, maxfev=20000)
+        perr = np.sqrt(np.diag(pcov))
+        print(popt)
+        print(perr)
+
 
         fig = plt.figure(figsize=(8,6), dpi=150)
         title = 'Low-pass(<%dHz), #%d, %.2fs-%.2fs' % (fs, self.ShotNo, t_st, t_ed)
@@ -9644,6 +10183,100 @@ def phase_diff_lag(phi_te, phi_lf):
     dlag = dphi / (3*np.pi*TRIG_FREQ) * 1e3                     # [ms]
     return dphi.squeeze(0), dlag.squeeze(-1)                   # (Ncyc, win)
 
+def _simpson_uniform(y, h):
+    """等間隔間隔 h の合成Simpson（点数が偶数なら最後は台形）"""
+    n = y.size
+    if n < 2:
+        return 0.0
+    if n % 2 == 1:  # 点数が奇数 → 区間数が偶数 → そのままSimpson
+        s = y[0] + y[-1]
+        s += 4.0 * np.sum(y[1:-1:2])
+        s += 2.0 * np.sum(y[2:-2:2])
+        return s * (h / 3.0)
+    else:  # 点数が偶数 → 最後の1区間は台形
+        s = y[0] + y[-2]
+        s += 4.0 * np.sum(y[1:-2:2])
+        s += 2.0 * np.sum(y[2:-3:2])
+        return s * (h / 3.0) + 0.5 * (y[-2] + y[-1]) * h
+
+def integrate_uniform_with_linear_gaps(t, y, t0, t1, gaps):
+    """
+    t: 等間隔・昇順の時刻 [s]
+    y: 値
+    [t0, t1]: 積分窓
+    gaps: 欠損区間 [(gs, ge), ...] （直線でブリッジ＝台形面積）
+    """
+    t = np.asarray(t); y = np.asarray(y)
+    m = np.isfinite(t) & np.isfinite(y)
+    t, y = t[m], y[m]
+    order = np.argsort(t)
+    t, y = t[order], y[order]
+
+    # 等間隔チェック（厳しめなら許容誤差を小さく）
+    dt = np.diff(t)
+    h = float(np.median(dt))
+    if not np.allclose(dt, h, rtol=1e-6, atol=1e-12):
+        raise ValueError("t は等間隔ではありません。")
+
+    # 観測ありセグメント = [t0,t1] から gaps を引く
+    segments = [(t0, t1)]
+    for gs, ge in gaps:
+        a, b = min(gs, ge), max(gs, ge)
+        new = []
+        for L, R in segments:
+            if b <= L or R <= a:           # 交差なし
+                new.append((L, R))
+            else:                           # 交差あり → 左右に分割
+                if L < a: new.append((L, min(R, a)))
+                if b < R: new.append((max(L, b), R))
+        segments = [(L, R) for (L, R) in new if R > L]
+
+    def integrate_measured_segment(a, b):
+        if b <= a: return 0.0
+        a = max(a, t[0]); b = min(b, t[-1])
+        if b <= a: return 0.0
+
+        ya = np.interp(a, t, y)
+        yb = np.interp(b, t, y)
+
+        iL = np.searchsorted(t, a, side='left')         # 最初のグリッド >= a
+        iR = np.searchsorted(t, b, side='right') - 1    # 最後のグリッド <= b
+
+        area = 0.0
+        # 左端の半端分
+        if iL < len(t) and t[iL] > a:
+            area += 0.5 * (ya + y[iL]) * (t[iL] - a)
+
+        # 内部グリッドをSimpson
+        if iR >= iL:
+            y_inner = y[iL:iR+1]
+            if y_inner.size >= 2:
+                area += _simpson_uniform(y_inner, h)
+
+        # 右端の半端分
+        if iR >= 0 and t[iR] < b:
+            area += 0.5 * (y[iR] + yb) * (b - t[iR])
+
+        # グリッド内点が無い短区間のとき（iR < iL）、両端だけの台形
+        if iR < iL:
+            area = 0.5 * (ya + yb) * (b - a)
+
+        return float(area)
+
+    # 1) 観測ありセグメント（Simpson + 端台形）
+    area_measured = sum(integrate_measured_segment(L, R) for (L, R) in segments)
+
+    # 2) 欠損セグメント（直線ブリッジ＝台形）
+    area_gaps = 0.0
+    for gs, ge in gaps:
+        a, b = max(min(gs, ge), t0), min(max(gs, ge), t1)
+        if b <= a: continue
+        ya = np.interp(a, t, y)
+        yb = np.interp(b, t, y)
+        area_gaps += 0.5 * (ya + yb) * (b - a)
+
+    return area_measured + area_gaps
+
 if __name__ == "__main__":
     start = time.time()
     #test_laplace_asymmetric()
@@ -9672,7 +10305,7 @@ if __name__ == "__main__":
     #ana_findpeaks_shotarray()
     #ana_delaytime_shotarray()
     #itba = ITB_Analysis(int(ShotNo))
-    itba = ITB_Analysis(169710,169712)#167088), 16395
+    itba = ITB_Analysis(190890,169712)#167088), 16395
     #itba.conditional_average_highK_mppk(t_st=5.3, t_ed=4.60)
     #ShotNos = np.arange(178940, 178970)
     #ShotNos = 169691 + np.array([2,3,8,9,17,18,20,22,24,25])
@@ -9720,13 +10353,15 @@ if __name__ == "__main__":
     #itba.ana_plot_HIBP_condAV_MECH(t_st=6.198, t_ed=6.798, mod_freq=2.5)
     #itba.ana_plot_HIBP_condAV_MECH(t_st=5.998, t_ed=6.998, mod_freq=1)
     #itba.ana_plot_HIBP_condAV_MECH(t_st=6.198, t_ed=6.998, mod_freq=5)
-    #itba.ana_plot_gradTe_vs_highK_MECH(t_st=5.998, t_ed=6.998, mod_freq=10)
+    itba.ana_plot_gradTe_vs_highK_MECH(t_st=4.998, t_ed=6.998, mod_freq=10, fit_time_range=(0.0,0.1))
     #itba.cal_phase_diff_BS_ECE_MECH_BS2ch(t_st=4.998, t_ed=6.998, mod_freq=10)
     #itba.ana_plot_BSADC_condAV_MECH(t_st=5.998, t_ed=6.998, mod_freq=10, isSaveData=False, isFitting=False, isBSTwoBand=True)
     #itba.ana_plot_BSADC_condAV_MECH(t_st=6.198, t_ed=6.998, mod_freq=5, isSaveData=False, isFitting=False, isBSTwoBand=True)
-    #itba.ana_plot_BSADC_condAV_MECH(t_st=6.998, t_ed=6.998, mod_freq=1, isSaveData=False, isFitting=False, isBSTwoBand=True)
+    #itba.ana_plot_BSADC_condAV_MECH(t_st=5.998, t_ed=7.998, mod_freq=1, isSaveData=False, isFitting=False, isBSTwoBand=True)
     #itba.ana_plot_BSADC_condAV_MECH(t_st=3.398, t_ed=4.198, mod_freq=40, isSaveData=False, isFitting=False, isBSTwoBand=True)  #for commphys
-    itba.conditional_average_BSADC(t_st=4.3, t_ed=4.6)
+    #itba.ana_plot_BSADC_condAV_MECH(t_st=3.398, t_ed=4.198, mod_freq=25, isSaveData=False, isFitting=False, isBSTwoBand=True)  #for commphys
+    #itba.ana_plot_BSADC_condAV_MECH(t_st=5.998, t_ed=7.998, mod_freq=0.5, isSaveData=False, isFitting=False, isBSTwoBand=True)  #for commphys
+    #itba.conditional_average_BSADC(t_st=4.3, t_ed=4.6, isBSTwoBand=True)
     #itba.ana_plot_BSADC_condAV_MECH(t_st=5.998, t_ed=6.798, mod_freq=2.5, isSaveData=False, isFitting=False, isBSTwoBand=True)
     #itba.cross_correlation_BSADC_condAV_MECH(t_st=5.398, t_ed=4.598, mod_freq=40)#6.998)    #20240509のデータはBSのバックグラウンド計測タイミング前後でコリレーションが大きく出てしまうのが偽信号
     #itba.cross_correlation_BSADC_condAV_MECH(t_st=4.398, t_ed=4.198, mod_freq=40)#6.998)    #20240509のデータはBSのバックグラウンド計測タイミング前後でコリレーションが大きく出てしまうのが偽信号
